@@ -1,0 +1,71 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>ECG Graphs</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+      .chart {
+        margin: 20px auto;
+        border: 1px solid #ccc;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Two divs stacked vertically -->
+    <div id="ecg1" class="chart"></div>
+    <div id="ecg2" class="chart"></div>
+
+    <script>
+      // Example ECG-like data
+      const ecg1Data = Array.from(
+        { length: 200 },
+        () => Math.sin(Math.random() * 2 * Math.PI) * 50 + 100
+      );
+      const ecg2Data = Array.from(
+        { length: 200 },
+        () => Math.sin(Math.random() * 2 * Math.PI) * 40 + 120
+      );
+
+      function drawECG(data, divId) {
+        const width = 800;
+        const height = 200;
+
+        const svg = d3
+          .select(`#${divId}`)
+          .append("svg")
+          .attr("width", width)
+          .attr("height", height);
+
+        const xScale = d3
+          .scaleLinear()
+          .domain([0, data.length - 1])
+          .range([0, width]);
+
+        const yScale = d3
+          .scaleLinear()
+          .domain([0, d3.max(data) * 1.1])
+          .range([height, 0]);
+
+        const line = d3
+          .line()
+          .x((d, i) => xScale(i))
+          .y((d) => yScale(d))
+          .curve(d3.curveCardinal); // smooth line
+
+        svg
+          .append("path")
+          .datum(data)
+          .attr("fill", "none")
+          .attr("stroke", "red")
+          .attr("stroke-width", 2)
+          .attr("d", line);
+      }
+
+      // Draw both ECGs
+      drawECG(ecg1Data, "ecg1");
+      drawECG(ecg2Data, "ecg2");
+    </script>
+  </body>
+</html>
