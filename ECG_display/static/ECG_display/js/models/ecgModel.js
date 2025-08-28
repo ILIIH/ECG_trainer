@@ -1,7 +1,7 @@
 // src/models/ecgModel.js
-import { wrap01, midArc } from "../utils.js";
+import { inArc, wrap01, midArc, gaussWrapped } from "../utils.js";
 
-let ecgModel = null;
+export let ecgModel = null;
 
 export const updateEcgModel = (state) => {
   const Tms = 60000 / state.bpm;
@@ -69,22 +69,11 @@ export const updateEcgModel = (state) => {
 
 export const getEcgModel = () => ecgModel;
 
-export const ecgBaselineAt = (phase) => {
+export const ecgBaselineAt = (phase, state) => {
   const m = ecgModel;
   if (!m) return state.tpLevel;
   if (inArc(m.pEnd, m.qrsStart, phase)) return m.prLevel;
   if (inArc(m.qrsEnd, m.tStart, phase)) return m.stLevel;
   if (inArc(m.tEnd, m.pStart, phase)) return m.tpLevel;
   return m.tpLevel;
-};
-
-export const ecgAtPhase = (phase, state, model = ecgModel) => {
-  const k = state.ecgAmp;
-  let v = ecgBaselineAt(phase);
-  v += k * state.pAmp * gaussWrapped(phase, model.muP, model.sP);
-  v += k * state.qAmp * gaussWrapped(phase, model.muQ, model.sQ);
-  v += k * state.rAmp * gaussWrapped(phase, model.muR, model.sR);
-  v += k * state.sAmp * gaussWrapped(phase, model.muS, model.sS);
-  v += k * state.tAmp * gaussWrapped(phase, model.muT, model.sT);
-  return v;
 };
