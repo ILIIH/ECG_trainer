@@ -1,0 +1,282 @@
+{% load static %}
+<!doctype html>
+<html lang="uk">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Симулятори анестезіології — Головна</title>
+  <meta name="description" content="Інтерактивні симулятори та відео-розбори для анестезіологів. Тренуйтесь у безпечному середовищі." />
+
+  <style>
+    :root{
+      --bg: #0b0f14;
+      --fg: #eaf2ff;
+      --muted: #a1b3c9;
+      --brand: #6ee7ff;
+      --accent: #a78bfa;
+      --card: rgba(255,255,255,.06);
+      --border: rgba(255,255,255,.12);
+      --glass: rgba(255,255,255,.08);
+      --shadow: 0 20px 60px rgba(0,0,0,.35), 0 2px 8px rgba(0,0,0,.3);
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0; font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, "Noto Sans", "Helvetica Neue", Arial;
+      color:var(--fg);
+      background:
+        radial-gradient(1200px 600px at 10% -10%, #18304a 0%, transparent 60%),
+        radial-gradient(1000px 500px at 110% 0%, #3a1c66 0%, transparent 55%),
+        radial-gradient(900px 800px at -10% 120%, #0e515f 0%, transparent 70%),
+        var(--bg);
+      overflow-x:hidden;
+    }
+    .background-anim::before{
+      content:""; position:fixed; inset:-20% -20% -20% -20%; pointer-events:none; z-index:-1;
+      background: conic-gradient(from 180deg at 50% 50%, rgba(110,231,255,.12), rgba(167,139,250,.12), rgba(110,231,255,.12));
+      filter: blur(90px); opacity:.9; animation: spin 36s linear infinite;
+    }
+    @keyframes spin{to{transform:rotate(1turn)}}
+    .container{max-width:1200px; margin:0 auto; padding:0 24px}
+
+    /* NAV */
+    nav{position:sticky; top:0; z-index:50; backdrop-filter:saturate(170%) blur(12px); background:rgba(11,15,20,.6); border-bottom:1px solid var(--border)}
+    .nav-inner{display:flex; align-items:center; justify-content:space-between; height:68px}
+    .logo{display:flex; align-items:center; gap:12px; font-weight:700; letter-spacing:.3px; color:var(--fg); text-decoration:none}
+    .logo img{height:40px; width:auto; display:block}
+    .nav-links{display:flex; align-items:center; gap:16px}
+    .nav-a{opacity:.85; text-decoration:none; color:var(--fg); padding:10px 12px; border-radius:12px; transition:opacity .2s, background .2s}
+    .nav-a:hover{opacity:1; background:var(--card)}
+    .btn{--br:linear-gradient(120deg, var(--brand), var(--accent)); position:relative; display:inline-flex; align-items:center; gap:.6rem; padding:14px 18px; border-radius:16px; text-decoration:none; color:#081116; font-weight:700; letter-spacing:.3px; background:var(--br); box-shadow:var(--shadow)}
+    .btn:hover{filter:saturate(1.15)}
+    .btn-ghost{color:var(--fg); background:transparent; border:1px solid var(--border)}
+
+    /* HERO */
+    .hero{display:grid; grid-template-columns: 1.15fr .85fr; gap:48px; padding:80px 0 46px}
+    .hero h1{margin:0 0 10px; font-size:clamp(38px,5vw,64px); line-height:1.06}
+    .hero p{margin:0 0 28px; color:var(--muted); font-size:clamp(16px,2vw,18px)}
+    .cta{display:flex; gap:12px; flex-wrap:wrap}
+
+    /* MONITOR */
+    .monitor{position:relative; border:1px solid var(--border); background:var(--glass); border-radius:26px; padding:18px; box-shadow:var(--shadow)}
+    .monitor-header{display:flex; justify-content:space-between; font-size:12px; color:#c2d7ffb8; opacity:.85; padding:2px 4px 12px}
+    .screen{
+      position:relative; height:320px; border-radius:16px; overflow:hidden;
+      background:linear-gradient(180deg, #041019, #06121c 50%, #041019);
+    }
+    .ecg{display:block; width:100%; height:100%}
+
+    /* ЕКГ: стилі хвилі та безкінечний скрол */
+    .lead path{ fill:none; stroke-width:2.2; filter:drop-shadow(0 0 4px currentColor) }
+    .lead{ animation: scroll var(--speed,6s) linear infinite; will-change: transform; }
+    @keyframes scroll{ to{ transform:translateX(calc(-1 * var(--w, 1000px))); } }
+
+    /* CHIPS */
+    .chips{display:flex; flex-wrap:wrap; gap:10px; margin:26px 0 0}
+    .chip{padding:10px 14px; border-radius:999px; border:1px solid var(--border); background:var(--card)}
+    .chip:hover{background:var(--glass)}
+
+    /* FEATURES */
+    .features{display:grid; grid-template-columns:repeat(3,1fr); gap:18px; padding:40px 0 10px}
+    .card{background:var(--glass); border:1px solid var(--border); border-radius:22px; padding:20px; box-shadow:var(--shadow)}
+    .card h3{margin:0 0 8px; font-size:20px}
+    .card p{margin:0; color:var(--muted)}
+
+    /* VIDEO */
+    .video{margin-top:26px; border-radius:22px; overflow:hidden; border:1px solid var(--border); background:var(--glass)}
+    .video iframe{width:100%; height:300px; display:block}
+
+    /* FOOTER */
+    footer{padding:40px 0 60px; color:var(--muted)}
+    .social{display:flex; align-items:center; gap:14px}
+    .social a{display:inline-flex; width:40px; height:40px; border-radius:12px; align-items:center; justify-content:center; border:1px solid var(--border); background:var(--card); text-decoration:none; color:var(--fg); transition:transform .18s ease, background .2s}
+    .social a:hover{transform:translateY(-2px); background:var(--glass)}
+
+    /* Reveal on scroll */
+    .reveal{opacity:0; transform:translateY(18px); transition:opacity .6s ease, transform .6s ease}
+    .reveal.is-visible{opacity:1; transform:none}
+
+    /* Responsive */
+    @media (max-width: 980px){
+      .hero{grid-template-columns:1fr; padding-top:56px}
+      .features{grid-template-columns:1fr;}
+      .screen{height:260px}
+    }
+    @media (prefers-reduced-motion: reduce){
+      .background-anim::before{animation:none}
+      .lead{animation:none}
+      .reveal{transition:none}
+    }
+  </style>
+</head>
+
+<body class="background-anim">
+  <nav>
+    <div class="container nav-inner">
+      <a href="#" class="logo" aria-label="Головна">
+        <!-- Замініть шлях на свій логотип -->
+        <img src="{% static 'img/logo.png' %}" alt="Лого сайту" />
+      </a>
+      <div class="nav-links">
+        <a class="nav-a" href="#features">Можливості</a>
+        <a class="nav-a" href="#preparations">Препарати</a>
+        <a class="nav-a" href="#video">Відео</a>
+        <a class="btn" href="/accounts/login/">Увійти</a>
+      </div>
+    </div>
+  </nav>
+
+  <main class="container">
+    <section class="hero">
+      <div>
+        <h1>Тренуйся на сучасних<br/> симуляторах анестезіології</h1>
+        <p>Живі монітори, реалістичні сценарії та чіткі підказки. Відпрацьовуйте прийняття рішень на безпечних кейсах </p>
+        <div class="cta">
+          <a class="btn" href="#">До симуляторів</a>
+          <a class="btn btn-ghost" href="#">Особистий кабінет</a>
+        </div>
+
+        <div id="preparations" class="chips reveal" style="margin-top:28px">
+
+        </div>
+      </div>
+
+      <!-- МОНІТОР З ЕКГ -->
+      <div class="monitor reveal" aria-label="Екран монітора">
+        <div class="monitor-header">
+          <span>Пацієнт • 36.6°C</span>
+          <span>SpO₂ 98% • BIS 90</span>
+        </div>
+        <div class="screen">
+          <svg id="ecg" class="ecg" viewBox="0 0 1000 300" preserveAspectRatio="none" aria-hidden="true"></svg>
+        </div>
+      </div>
+    </section>
+
+    <section id="features" class="features">
+      <article class="card reveal">
+        <h3>Сценарії реального часу</h3>
+        <p>Алгоритми реагують на ваші дії: індукція, підтримка, вихід з наркозу та ургентні ситуації.</p>
+      </article>
+      <article class="card reveal">
+        <h3>Відео-розбір</h3>
+        <p>Кожен кейс супроводжується коротким розбором: що зроблено правильно, а де можна краще.</p>
+      </article>
+      <article class="card reveal">
+        <h3>Особистий кабінет</h3>
+        <p>Відстежуйте прогрес, продовжуйте сценарії та зберігайте нотатки.</p>
+      </article>
+    </section>
+
+    <section id="video" class="video reveal" aria-label="Превʼю відео">
+      <iframe src="https://www.youtube.com/embed/1G0_mw2zCw4?rel=0&modestbranding=1"
+              title="Огляд симулятора" frameborder="0"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+              allowfullscreen></iframe>
+    </section>
+
+    <footer class="reveal">
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap">
+        <small>© <span id="y"></span> Анестезіо симулятор. Всі права захищені.</small>
+        <div class="social" aria-label="Соцмережі">
+          <a aria-label="Telegram" href="#">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M22 2L2 11l6 2 2 6 12-17z" stroke="currentColor" stroke-width="1.5" fill="none"/>
+            </svg>
+          </a>
+          <a aria-label="Instagram" href="#">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <rect x="3" y="3" width="18" height="18" rx="5" stroke="currentColor" stroke-width="1.5"/>
+              <circle cx="12" cy="12" r="4" stroke="currentColor" stroke-width="1.5"/>
+              <circle cx="17.5" cy="6.5" r="1.2" fill="currentColor"/>
+            </svg>
+          </a>
+          <a aria-label="YouTube" href="#">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M22 12s0-3-1-4-4-1-9-1-8 0-9 1-1 4-1 4 0 3 1 4 4 1 9 1 8 0 9-1 1-4 1-4z" stroke="currentColor" stroke-width="1.5" fill="none"/>
+              <path d="M10 9l5 3-5 3V9z" fill="currentColor"/>
+            </svg>
+          </a>
+        </div>
+      </div>
+    </footer>
+  </main>
+
+  <script>
+    // Поточний рік у футері
+    document.getElementById('y').textContent = new Date().getFullYear();
+
+    // Плавна поява блоків
+    const io = new IntersectionObserver((entries)=>{
+      entries.forEach(e=>{ if(e.isIntersecting){ e.target.classList.add('is-visible'); io.unobserve(e.target);} });
+    }, {threshold:.15});
+    document.querySelectorAll('.reveal').forEach(el=> io.observe(el));
+
+    // ===== Живе ЕКГ (2 доріжки, SVG, без бібліотек) =====
+    (function(){
+      const svg = document.getElementById('ecg');
+      if(!svg) return;
+
+      function cyclePath(x0, y0, amp, w){
+        // один кардіо-цикл: P, QRS, T
+        let x = x0, d = `M ${x} ${y0}`;
+        const step = (dx, dy)=>{ x += dx; d += ` L ${x} ${y0 - dy}`; };
+
+        step(w*0.06, 0);                      // ізолінія
+        step(w*0.05,  amp*0.10);              // P ↑
+        step(w*0.05,  amp*0.18);
+        step(w*0.05,  amp*0.10);              // P ↓
+        step(w*0.05,  0);                     // PR
+        step(w*0.04, -amp*0.35);              // Q
+        step(w*0.03,  amp*1.10);              // R
+        step(w*0.04, -amp*0.45);              // S
+        step(w*0.12,  0);                     // ST
+        step(w*0.08,  amp*0.25);              // T ↑
+        step(w*0.08,  amp*0.35);
+        step(w*0.08,  amp*0.25);              // T ↓
+        step(w*0.06,  0);                     // повернення на ізолінію
+        step(w*0.05,  0);                     // запас
+        return { d, width: x - x0 };
+      }
+
+      function makeLead(baseline, amp, color, speed){
+        const W = svg.clientWidth || 1000;
+        let { d, width } = cyclePath(0, baseline, amp, 180);
+        for(let filled = width; filled < W; ){
+          const s = cyclePath(filled, baseline, amp, 180);
+          d += ' ' + s.d.slice(s.d.indexOf('L'));
+          filled += s.width;
+        }
+        // група з двома копіями — для безшовного скролу
+        const g = document.createElementNS('http://www.w3.org/2000/svg','g');
+        g.classList.add('lead');
+        g.style.setProperty('--w', `${W}px`);
+        g.style.setProperty('--speed', `${speed}s`);
+
+        const p1 = document.createElementNS('http://www.w3.org/2000/svg','path');
+        p1.setAttribute('d', d);
+        p1.setAttribute('stroke', color);
+
+        const p2 = p1.cloneNode();
+        p2.setAttribute('transform', `translate(${W},0)`);
+
+        g.append(p1, p2);
+        svg.appendChild(g);
+      }
+
+      function render(){
+        while(svg.firstChild) svg.removeChild(svg.firstChild);
+        const W = svg.clientWidth || 1000, H = svg.clientHeight || 300;
+        svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+
+        // Дві паралельні доріжки
+        makeLead(H*0.35, H*0.18, '#21f6a1', 6.5); // верхня
+        makeLead(H*0.72, H*0.14, '#47b6ff', 8.0); // нижня
+      }
+
+      render();
+      window.addEventListener('resize', render);
+    })();
+  </script>
+</body>
+</html>
