@@ -118,10 +118,22 @@
         <img src="{% static 'img/logo.png' %}" alt="Лого сайту" />
       </a>
       <div class="nav-links">
-        <a class="nav-a" href="#features">Можливості</a>
-        <a class="nav-a" href="#preparations">Препарати</a>
-        <a class="nav-a" href="#video">Відео</a>
-        <a class="btn" href="/accounts/login/">Увійти</a>
+        <a class="nav-a" href="#features">Плани підписок</a>
+        <a class="nav-a" href="#preparations">Режим навчання</a>
+        <a class="nav-a" href="#video">Сайт школи</a>
+       
+{% if user.is_authenticated %}
+  <form action="{% url 'logout' %}" method="post" style="display:inline">
+    {% csrf_token %}
+    <button type="submit" class="btn btn-ghost">Вийти</button>
+  </form>
+{% else %}
+  <a class="btn" href="{% url 'login' %}">Увійти</a>
+{% endif %}
+
+
+
+
       </div>
     </div>
   </nav>
@@ -132,8 +144,8 @@
         <h1>Тренуйся на сучасних<br/> симуляторах анестезіології</h1>
         <p>Живі монітори, реалістичні сценарії та чіткі підказки. Відпрацьовуйте прийняття рішень на безпечних кейсах </p>
         <div class="cta">
-          <a class="btn" href="#">До симуляторів</a>
-          <a class="btn btn-ghost" href="#">Особистий кабінет</a>
+          <a class="btn" href="{% url 'home' %}">До симуляторів</a>
+          <a class="btn btn-ghost" href="{% url 'login' %}">Особистий кабінет</a>
         </div>
 
         <div id="preparations" class="chips reveal" style="margin-top:28px">
