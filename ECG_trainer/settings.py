@@ -104,6 +104,11 @@ AUTH_PASSWORD_VALIDATORS = [
     },
 ]
 
+import os
+STRIPE_SECRET_KEY = os.getenv("STRIPE_SECRET_KEY", "sk_test_XXXXXXXX")  # такий, що починається з sk_test_
+STRIPE_PUBLIC_KEY = os.getenv("STRIPE_PUBLIC_KEY", "pk_test_XXXXXXXX")  # починається з pk_test_
+STRIPE_WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET", "whsec_XXXXXXXX")
+ALLOWED_HOSTS = ["127.0.0.1", "localhost"]
 
 # Internationalization
 # https://docs.djangoproject.com/en/5.2/topics/i18n/
@@ -126,3 +131,12 @@ STATIC_URL = '/static/'
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# Ключі Stripe (тестові)
+STRIPE_SECRET_KEY = 'sk_test_...'
+STRIPE_PUBLIC_KEY = 'pk_test_...'
+STRIPE_WEBHOOK_SECRET = 'whsec_...'
+
+# Куди редіректити після логіну/логауту
+LOGIN_REDIRECT_URL = 'profile' # або 'home'
+LOGOUT_REDIRECT_URL = 'home'
