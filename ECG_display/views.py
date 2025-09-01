@@ -21,7 +21,7 @@ def main(request):
 
 stripe.api_key = settings.STRIPE_SECRET_KEY
 
-# --- Хелпери ---
+# --- Helperi ---
 
 def _active_feature_ids_for(user) -> set[int]:
     now = timezone.now()
