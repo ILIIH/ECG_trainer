@@ -1,0 +1,133 @@
+{% load static %}
+<!doctype html>
+<html lang="uk">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Реєстрація</title>
+  <meta name="description" content="Створення акаунта" />
+  <style>
+    :root{
+      --bg:#0b0f14; --fg:#eaf2ff; --muted:#a1b3c9; --brand:#6ee7ff; --accent:#a78bfa; --border:rgba(255,255,255,.12); --card:rgba(255,255,255,.06); --glass:rgba(255,255,255,.08);
+      --shadow:0 20px 60px rgba(0,0,0,.35), 0 2px 8px rgba(0,0,0,.3);
+      --error:#ff6b6b; --ok:#21f6a1;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0; font-family:Inter, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, "Noto Sans", "Helvetica Neue", Arial; color:var(--fg);
+      background:
+        radial-gradient(1200px 600px at 10% -10%, #18304a 0%, transparent 60%),
+        radial-gradient(1000px 500px at 110% 0%, #3a1c66 0%, transparent 55%),
+        radial-gradient(900px 800px at -10% 120%, #0e515f 0%, transparent 70%),
+        var(--bg);
+      overflow-x:hidden;
+    }
+    .background-anim::before{content:""; position:fixed; inset:-20% -20% -20% -20%; pointer-events:none; z-index:-1; background: conic-gradient(from 180deg at 50% 50%, rgba(110,231,255,.10), rgba(167,139,250,.10), rgba(110,231,255,.10)); filter: blur(90px); opacity:.9; animation: spin 36s linear infinite;}
+    @keyframes spin{to{transform:rotate(1turn)}}
+
+    .wrap{min-height:100%; display:grid; place-items:center; padding:40px 16px}
+    .card{width:min(520px, 100%); background:var(--glass); border:1px solid var(--border); border-radius:22px; box-shadow:var(--shadow); padding:28px}
+    .brand{display:flex; align-items:center; gap:12px; margin-bottom:14px}
+    .brand img{height:40px; width:auto}
+    h1{margin:0 0 4px; font-size:28px}
+    p.sub{margin:0 0 18px; color:var(--muted)}
+
+    form{display:grid; gap:14px}
+    label{font-size:14px; color:#cfe2ff}
+    .field{position:relative}
+    .input{width:100%; padding:14px 14px; border-radius:14px; border:1px solid var(--border); background:rgba(255,255,255,.04); color:var(--fg); outline:none}
+    .input:focus{border-color:rgba(110,231,255,.55); box-shadow:0 0 0 3px rgba(110,231,255,.12)}
+
+    .row{display:grid; grid-template-columns:1fr 1fr; gap:12px}
+    @media (max-width:560px){ .row{grid-template-columns:1fr} }
+
+    .errorlist{list-style:none; margin:6px 0 0; padding:0; color:var(--error); font-size:13px}
+    .nonfield{margin:-6px 0 6px; color:var(--error); font-size:14px}
+
+    .btn{--br:linear-gradient(120deg, var(--brand), var(--accent)); width:100%; display:inline-flex; align-items:center; justify-content:center; gap:.6rem; padding:14px 18px; border-radius:16px; text-decoration:none; color:#081116; font-weight:700; letter-spacing:.3px; background:var(--br); box-shadow:var(--shadow); border:0; cursor:pointer}
+    .btn:hover{filter:saturate(1.12)}
+    .muted{color:var(--muted); font-size:14px}
+    .muted a{color:var(--fg)}
+  </style>
+</head>
+<body class="background-anim">
+  <main class="wrap">
+    <section class="card" aria-label="Форма реєстрації">
+      <div class="brand">
+        <img src="{% static 'img/logo.png' %}" alt="Лого"/>
+        <div>
+          <h1>Реєстрація</h1>
+          <p class="sub">Створіть новий акаунт</p>
+        </div>
+      </div>
+
+      {% if form.non_field_errors %}
+        <div class="nonfield">{{ form.non_field_errors }}</div>
+      {% endif %}
+
+      <form method="post" action="{% url 'signup' %}" novalidate>
+        {% csrf_token %}
+        {% if next %}<input type="hidden" name="next" value="{{ next }}"/>{% endif %}
+
+        <div class="field">
+          <label for="id_username">Логін</label>
+          <input id="id_username" class="input" type="text" name="username" required
+                 value="{{ form.data.username|default:'' }}" autocomplete="username"/>
+          {% if form.username.errors %}
+            <ul class="errorlist">{% for e in form.username.errors %}<li>{{ e }}</li>{% endfor %}</ul>
+          {% endif %}
+        </div>
+
+        <div class="field">
+          <label for="id_email">Email</label>
+          <input id="id_email" class="input" type="email" name="email" required
+                 value="{{ form.data.email|default:'' }}" autocomplete="email"/>
+          {% if form.email.errors %}
+            <ul class="errorlist">{% for e in form.email.errors %}<li>{{ e }}</li>{% endfor %}</ul>
+          {% endif %}
+        </div>
+
+        <div class="row">
+          <div class="field">
+            <label for="id_first_name">Ім'я</label>
+            <input id="id_first_name" class="input" type="text" name="first_name"
+                   value="{{ form.data.first_name|default:'' }}" autocomplete="given-name"/>
+            {% if form.first_name.errors %}
+              <ul class="errorlist">{% for e in form.first_name.errors %}<li>{{ e }}</li>{% endfor %}</ul>
+            {% endif %}
+          </div>
+          <div class="field">
+            <label for="id_last_name">Прізвище</label>
+            <input id="id_last_name" class="input" type="text" name="last_name"
+                   value="{{ form.data.last_name|default:'' }}" autocomplete="family-name"/>
+            {% if form.last_name.errors %}
+              <ul class="errorlist">{% for e in form.last_name.errors %}<li>{{ e }}</li>{% endfor %}</ul>
+            {% endif %}
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="id_password1">Пароль</label>
+          <input id="id_password1" class="input" type="password" name="password1" required autocomplete="new-password"/>
+          {% if form.password1.errors %}
+            <ul class="errorlist">{% for e in form.password1.errors %}<li>{{ e }}</li>{% endfor %}</ul>
+          {% endif %}
+        </div>
+
+        <div class="field">
+          <label for="id_password2">Повторіть пароль</label>
+          <input id="id_password2" class="input" type="password" name="password2" required autocomplete="new-password"/>
+          {% if form.password2.errors %}
+            <ul class="errorlist">{% for e in form.password2.errors %}<li>{{ e }}</li>{% endfor %}</ul>
+          {% endif %}
+        </div>
+
+        <button class="btn" type="submit">Зареєструватись</button>
+      </form>
+
+      <p class="muted" style="margin-top:14px">Вже маєте акаунт? <a href="{% url 'login' %}">Увійти</a></p>
+    </section>
+  </main>
+</body>
+</html>

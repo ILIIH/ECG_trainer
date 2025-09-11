@@ -4,475 +4,450 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>ЕКГ + Інвазивна сфігмограма — зв’язана симуляція</title>
+    <title>ЕКГ + Інвазивна сфігмограма — окремий монітор</title>
+
+    <!-- D3 -->
     <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
-    <link rel="stylesheet" href="{% static 'ECG_display/css/home.css' %}" />
+
+    <!-- Шрифти -->
+    <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Inter:wght@400;600&display=swap" rel="stylesheet" />
+
+    <style>
+      /* ===== Сцена / кімната ===== */
+      :root{
+        --bg:#000;
+        --bezel:#0d0f11;
+        --bezel-2:#16191c;
+        --bezel-3:#23272b;
+        --metal:#2c3136;
+        --text:#cfd8dc;
+        --grid:#0a0a0a;
+        --grid-strong:#161616;
+        --ecg:#00ff6a;
+        --abp:#ffd300;
+        --spo2:#00b8ff;
+        --warn:#ff2d55;
+        --ok:#36e07b;
+        --amber:#ffb400;
+
+        --pane-h: 220px;
+        --radius: 18px;
+      }
+      *{box-sizing:border-box}
+      html,body{height:100%}
+      body{
+        margin:0; background: radial-gradient(1200px 600px at 20% -10%, #1a1d21, #101215 52%, #0b0c0e 100%);
+        color:var(--text); font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, sans-serif;
+        -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale;
+      }
+      .room{ padding: 46px 18px 80px; }
+
+      /* ===== Пристрій: корпус монітора ===== */
+      .monitor{
+        width: min(1180px, 100%);
+        margin: 0 auto;
+        position: relative;
+        filter: drop-shadow(0 40px 90px rgba(0,0,0,.7));
+      }
+      .device-body{
+        position: relative;
+        border-radius: 28px;
+        padding: 18px;
+        background:
+          linear-gradient(180deg, #1b1f23, #14171a),
+          radial-gradient(900px 200px at 50% -40px, rgba(255,255,255,.06), transparent 55%);
+        box-shadow:
+          inset 0 1px 0 rgba(255,255,255,.06),
+          inset 0 -1px 0 rgba(0,0,0,.6),
+          0 8px 30px rgba(0,0,0,.45);
+        border: 1px solid #1a1d21;
+      }
+
+      /* Гвинти */
+      .screw{
+        --d: 16px;
+        position:absolute; width:var(--d); height:var(--d); border-radius:50%;
+        background:
+          radial-gradient(circle at 30% 35%, rgba(255,255,255,.35), transparent 45%),
+          radial-gradient(circle at 70% 70%, rgba(0,0,0,.6), transparent 55%),
+          repeating-linear-gradient(45deg, #262a2d, #262a2d 2px, #202427 2px, #202427 4px);
+        box-shadow: inset 0 0 0 2px #0f1214, 0 1px 0 rgba(255,255,255,.1), 0 4px 12px rgba(0,0,0,.5);
+      }
+      .screw.tl{ top:14px; left:14px }
+      .screw.tr{ top:14px; right:14px }
+      .screw.bl{ bottom:14px; left:14px }
+      .screw.br{ bottom:14px; right:14px }
+
+      /* Брендинг і індикатори */
+      .topbar{
+        display:flex; align-items:center; justify-content:space-between;
+        padding: 0 6px 10px 6px;
+      }
+      .brand{
+        font-weight:600; letter-spacing:.6px; color:#e8f1f2;
+        text-transform: uppercase; opacity:.9;
+      }
+      .leds{ display:flex; align-items:center; gap:10px; }
+      .led{
+        width:12px; height:12px; border-radius:50%;
+        background:#2a2d30; border:1px solid #000; box-shadow: inset 0 0 4px rgba(0,0,0,.7);
+      }
+      .led-power.on{ background: #2cff7f; box-shadow: 0 0 10px #2cff7f, 0 0 20px #2cff7f; }
+      .led-power.standby{ background: var(--amber); box-shadow: 0 0 10px var(--amber), 0 0 20px var(--amber); }
+      .led-alarm.on{ background: var(--warn); box-shadow: 0 0 12px var(--warn), 0 0 24px var(--warn); animation: blink .9s steps(2) infinite; }
+      @keyframes blink { 0%,49%{opacity:1} 50%,100%{opacity:.1} }
+
+      /* Безель + екран */
+      .screen-bezel{
+        position: relative;
+        border-radius: 22px;
+        padding: 16px;
+        background:
+          linear-gradient(180deg, var(--bezel-2), var(--bezel)),
+          radial-gradient(900px 200px at 50% -50px, rgba(255,255,255,.08), transparent 60%);
+        box-shadow:
+          inset 0 0 0 2px #0c0e10,
+          inset 0 0 0 1px rgba(255,255,255,.03),
+          0 10px 28px rgba(0,0,0,.45);
+      }
+      .screen{
+        position: relative; border-radius: 14px; overflow: hidden;
+        background:#000;
+        box-shadow: inset 0 0 60px rgba(0,0,0,.65);
+        isolation:isolate;
+      }
+      /* Блік скла */
+      .screen::after{
+        content:""; position:absolute; inset:-20% -30% auto -30%; height:50%;
+        background: linear-gradient(180deg, rgba(255,255,255,.06), transparent 60%);
+        transform: rotate(-5deg);
+        pointer-events:none; mix-blend-mode: screen;
+      }
+      .screen.off{ filter: brightness(.06) contrast(.8) saturate(.6); }
+      .screen.off .overlay{
+        position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+        color:#7a8388; font-family:"Share Tech Mono", ui-monospace, monospace; font-size:20px; letter-spacing:.2em;
+        text-transform:uppercase; background: linear-gradient(180deg, rgba(0,0,0,.5), rgba(0,0,0,.8));
+      }
+
+      /* Софт-клавіші та енкодер */
+      .softkeys{
+        position:absolute; top:72px; right:-64px; display:flex; flex-direction:column; gap:10px;
+      }
+      .softkey{
+        width:54px; height:26px; border-radius:6px; cursor:pointer; user-select:none;
+        background: linear-gradient(180deg, #2f3439, #1e2328); color:#d8e1e5; font-size:11px;
+        border:1px solid #0f1214; box-shadow: inset 0 1px 0 rgba(255,255,255,.08), 0 3px 10px rgba(0,0,0,.45);
+      }
+      .knob{
+        position:absolute; top: 280px; right:-78px;
+        width:46px; height:46px; border-radius:50%;
+        background:
+          radial-gradient(circle at 30% 30%, rgba(255,255,255,.25), transparent 40%),
+          radial-gradient(circle at 70% 70%, rgba(0,0,0,.6), transparent 55%),
+          repeating-conic-gradient(from 0deg, #2e3439 0 6deg, #262b2f 6deg 12deg);
+        border:1px solid #0e1113; box-shadow: inset 0 0 0 2px #1b2024, 0 6px 16px rgba(0,0,0,.6);
+      }
+      .power{
+        position:absolute; bottom:-58px; right: 18px;
+        padding:8px 14px; border-radius:10px; font-weight:600; letter-spacing:.3px;
+        background: linear-gradient(180deg, #3a4046, #242a30); color:#eaf1f3;
+        border:1px solid #0f1214; box-shadow: inset 0 1px 0 rgba(255,255,255,.08), 0 4px 12px rgba(0,0,0,.45);
+        cursor:pointer;
+      }
+
+      /* Підставка */
+      .stand{ position:relative; height:120px; }
+      .neck{
+        position:absolute; left:50%; transform:translateX(-50%);
+        top:0; width: 120px; height: 80px; border-radius: 0 0 30px 30px / 0 0 20px 20px;
+        background: linear-gradient(180deg, #1b1f23, #111417);
+        box-shadow: inset 0 1px 0 rgba(255,255,255,.05), 0 8px 30px rgba(0,0,0,.5);
+      }
+      .base{
+        position:absolute; left:50%; transform:translateX(-50%);
+        bottom:0; width: 360px; height: 18px; border-radius: 18px;
+        background: linear-gradient(180deg, #2c3136, #1a1e22);
+        box-shadow: 0 20px 40px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.06);
+      }
+
+      /* ===== Вміст екрана (твій UI), стилізований під ICU ===== */
+      .panel{
+        /* прибираємо «картковість», лишаємо «чистий екран» */
+        max-width: 100%; margin: 0; background: transparent; border-radius: 0;
+        padding: 16px 16px 18px; box-shadow: none;
+      }
+      .panel h1{ margin:0 0 6px; font-size: 18px; color:#e8f1f2; opacity:.85; text-transform: uppercase; }
+      .sub{ color:#9fb1b8; font-size: 13px; line-height:1.4; margin-bottom: 10px; }
+
+      .kpis{ display:flex; flex-wrap:wrap; gap:12px; margin-bottom:10px; }
+      .kpi{ border:1px solid #0c0e10; background: linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,0));
+            padding:8px 12px; border-radius:12px; display:flex; align-items:baseline; gap:8px; min-height:56px; }
+      .kpi b, .digits{ font-family:"Share Tech Mono", ui-monospace, monospace; font-size:38px; line-height:1; letter-spacing:.5px; }
+      .digits-sm{ font-family:"Share Tech Mono", ui-monospace, monospace; font-size:28px; }
+      .kpi.hr b{ color: var(--ecg); text-shadow: 0 0 6px var(--ecg), 0 0 12px rgba(0,255,106,.4); }
+      .kpi.art b, .kpi.map b{ color: var(--abp); text-shadow: 0 0 6px var(--abp), 0 0 12px rgba(255,211,0,.3); }
+      .kpi.meta b{ color:#e8f1f2; text-shadow: 0 0 5px rgba(255,255,255,.25); }
+
+      .controls{
+        margin-top: 6px; background:#070708; border:1px solid #0c0e10; border-radius:14px; padding:12px;
+      }
+      @media (min-width:1100px){
+        .panel{ display:grid; grid-template-columns: 1fr 360px; grid-template-rows:auto auto 1fr auto; gap: 12px 16px; }
+        .sub, .kpis, .row, .small{ grid-column: 1/2; }
+        .controls{ grid-column:2/3; grid-row:1 / span 4; position: sticky; top: 10px; max-height: calc(100vh - 200px); overflow:auto; }
+      }
+      .group{ border-top:1px dashed #1a1a1a; padding-top:10px; margin-top:10px; }
+      .group:first-of-type{ border-top:none; padding-top:0; margin-top:0; }
+      .field{ display:grid; grid-template-columns: 1fr 1.2fr; gap: 8px 10px; align-items:center; margin: 8px 0; }
+      .field label{ color:#aab8bd; font-size:14px; }
+      .field .val{ color:#e5eff1; }
+      input[type="range"]{ width:100%; }
+      input[type="number"].num, input[type="number"], input[type="text"]{
+        background:#0d0e0f; color:#f1f6f7; border:1px solid #252525; border-radius:10px; padding:8px 10px; outline:none;
+      }
+      button{ background:#0f0f10; color:#eaf1f3; border:1px solid #2a2a2a; padding:10px 12px; border-radius:12px; cursor:pointer; }
+      button.primary{ background:linear-gradient(180deg, #1c1c1d, #0f0f10); border-color:#313131; }
+
+      .row{ display:grid; grid-template-columns:1fr; gap:10px; }
+      .chart-panel{ position:relative; border:1px solid #0c0e10; border-radius:14px; padding:10px; background:#000; overflow:hidden; }
+      #ecgChart, #abpChart{
+        height: var(--pane-h); width:100%; position:relative;
+        background:
+          repeating-linear-gradient(0deg,   transparent 0 59px, var(--grid-strong) 59px 60px),
+          repeating-linear-gradient(90deg,  transparent 0 59px, var(--grid-strong) 59px 60px),
+          repeating-linear-gradient(0deg,   transparent 0 11px, var(--grid) 11px 12px),
+          repeating-linear-gradient(90deg,  transparent 0 11px, var(--grid) 11px 12px),
+          #000;
+        border-radius: 12px; box-shadow: inset 0 0 60px rgba(0,0,0,.55);
+      }
+      .legend{ margin-top:6px; color:#9fb1b8; font-size:13px; display:flex; align-items:center; gap:8px; }
+      .sw{ display:inline-block; width:18px; height:6px; border-radius:3px; box-shadow: 0 0 6px currentColor, 0 0 12px currentColor inset; }
+      .sw.ecg{ background: var(--ecg); color: var(--ecg); }
+      .sw.abp{ background: var(--abp); color: var(--abp); }
+
+      #ecgChart svg path{ stroke: var(--ecg) !important; stroke-width: 2.4; fill:none; filter: drop-shadow(0 0 2px var(--ecg)) drop-shadow(0 0 8px rgba(0,255,106,.35)); }
+      #abpChart svg path{ stroke: var(--abp) !important; stroke-width: 2.4; fill:none; filter: drop-shadow(0 0 2px var(--abp)) drop-shadow(0 0 8px rgba(255,211,0,.35)); }
+
+      #ecgChart .axis, #abpChart .axis, #ecgChart .tick, #abpChart .tick, #ecgChart text, #abpChart text{ display:none; }
+
+      .warn{ color: var(--warn); font-weight: 600; margin-left: 6px; }
+      .alarm-lamp{ width:10px; height:10px; border-radius:50%; display:inline-block; margin-left:8px; background:#2d2d2d; box-shadow: inset 0 0 4px rgba(0,0,0,.8); }
+      .alarm .alarm-lamp{ background: var(--warn); box-shadow: 0 0 10px var(--warn), 0 0 22px var(--warn); }
+      .small{ color:#93a5ac; font-size:12px; line-height:1.45; opacity:.9; margin-top:6px; }
+
+      @media (max-width:700px){
+        .softkeys, .knob{ display:none; }
+        .kpi b{ font-size:30px; }
+        #ecgChart, #abpChart{ --pane-h: 180px; }
+      }
+    </style>
   </head>
+
   <body>
-    <div class="wrap">
-      <div class="panel">
-        <h1>ЕКГ + Інвазивна сфігмограма</h1>
-        <div class="sub">
-          ЕКГ і тиск синхронізовані одним «серцевим годинником». R‑пік = фаза 0.
-          Тиск стартує після EMD і PTT. Монітор показує ART/MAP, SpO₂/PI, TOF,
-          BIS.
+    <div class="room">
+      <div class="monitor">
+        <div class="device-body">
+          <!-- гвинти -->
+          <div class="screw tl"></div><div class="screw tr"></div><div class="screw bl"></div><div class="screw br"></div>
+
+          <div class="topbar">
+            <div class="brand">VitaMon</div>
+            <div class="leds">
+              <div class="led led-power on" id="ledPower" title="Power"></div>
+              <div class="led led-alarm" id="deviceAlarmLed" title="Alarm"></div>
+            </div>
+          </div>
+
+          <div class="screen-bezel">
+            <div class="screen" id="screen">
+              <!-- Вміст екрана -->
+              <div class="panel">
+                <h1>ЕКГ + Інвазивна сфігмограма</h1>
+                <div class="sub">
+                  ЕКГ і тиск синхронізовані одним «серцевим годинником». R-пік = фаза 0.
+                  Тиск стартує після EMD і PTT. Монітор показує ART/MAP, SpO₂/PI, TOF, BIS.
+                </div>
+
+                <div class="kpis" id="kpis">
+                  <div class="kpi hr">ЧСС: <b id="hrKpi" class="digits">60</b> уд/хв</div>
+                  <div class="kpi art">САТ/ДАТ (вимір): <b id="bpKpi" class="digits">120/70</b> мм рт. ст.</div>
+                  <div class="kpi map">MAP≈ <b id="mapKpi" class="digits">87</b></div>
+                  <div class="kpi meta">EMD: <b id="emdKpi" class="digits-sm">120</b> мс</div>
+                  <div class="kpi meta">PTT: <b id="pttKpi" class="digits-sm">80</b> мс</div>
+                </div>
+
+                <div class="controls group">
+                  <h2 class="settings-title" id="settingsTitle">Налаштування</h2>
+                  <button id="toggleControls" style="position:absolute; top:10px; right:10px">−</button>
+
+                  <div class="group" style="margin-top:20px">
+                    <div class="field"><label>ЧСС <span class="val" id="bpmVal">60</span> уд/хв</label><input id="bpm" type="range" min="40" max="140" step="1" value="60" /></div>
+                    <div class="field"><label>Тривалість огляду <span class="val" id="durVal">10</span> с</label><input id="duration" type="range" min="4" max="20" step="1" value="10" /></div>
+                    <div class="field"><label>Частота дискретизації (Гц)</label><input id="fs" type="number" step="1" value="500" /></div>
+                    <div class="field"><label>Амплітуда ЕКГ (глобальна, ×) <span class="val" id="ecgAmpVal">1.00</span></label><input id="ecgAmp" type="range" min="0.4" max="2.0" step="0.01" value="1.0" /></div>
+                  </div>
+
+                  <div class="group">
+                    <h3>ЕКГ — зубці (амплітуди) і тривалості</h3>
+                    <div class="field"><label>P амп (мВ)</label><input id="pAmp" class="num" type="number" step="0.01" value="0.12" /></div>
+                    <div class="field"><label>P трив. (мс)</label><input id="pDur" class="num" type="number" step="5" value="110" /></div>
+                    <div class="field"><label>Q амп (мВ)</label><input id="qAmp" class="num" type="number" step="0.01" value="-0.15" /></div>
+                    <div class="field"><label>QRS трив. (мс)</label><input id="qrsDur" class="num" type="number" step="5" value="90" /></div>
+                    <div class="field"><label>R амп (мВ)</label><input id="rAmp" class="num" type="number" step="0.01" value="1.00" /></div>
+                    <div class="field"><label>PR сегм. (мс)</label><input id="prSeg" class="num" type="number" step="5" value="160" /></div>
+                    <div class="field"><label>S амп (мВ)</label><input id="sAmp" class="num" type="number" step="0.01" value="-0.25" /></div>
+                    <div class="field"><label>ST сегм. (мс)</label><input id="stSeg" class="num" type="number" step="5" value="120" /></div>
+                    <div class="field"><label>T амп (мВ)</label><input id="tAmp" class="num" type="number" step="0.01" value="0.35" /></div>
+                    <div class="field"><label>T трив. (мс)</label><input id="tDur" class="num" type="number" step="5" value="180" /></div>
+                    <div class="field"><label>TP трив. (мс)</label><input id="tpDur" class="num" type="number" step="5" value="280" /></div>
+                    <div class="field"><label>Auto TP (заповнити залишок)</label><input id="autoTP" type="checkbox" checked /></div>
+                  </div>
+
+                  <div class="group">
+                    <h3>ЕКГ — рівні сегментів / ізолінія</h3>
+                    <div class="field"><label>PR рівень (мВ)</label><input id="prLvl" class="num" type="number" step="0.01" value="0" /></div>
+                    <div class="field"><label>ST рівень (мВ)</label><input id="stLvl" class="num" type="number" step="0.01" value="0" /></div>
+                    <div class="field"><label>TP/ізолінія (мВ)</label><input id="tpLvl" class="num" type="number" step="0.01" value="0" /></div>
+                  </div>
+
+                  <div class="group">
+                    <h3>Параметри АТ та монітора</h3>
+                    <div class="field"><label>САТ <span class="val" id="sysVal">120</span></label><input id="sys" type="range" min="80" max="220" step="1" value="120" /><input id="sysN" class="num" type="number" step="1" value="120" inputmode="numeric" /></div>
+                    <div class="field"><label>ДАТ <span class="val" id="diaVal">70</span></label><input id="dia" type="range" min="40" max="120" step="1" value="70" /><input id="diaN" class="num" type="number" step="1" value="70" inputmode="numeric" /></div>
+                    <div class="field"><label>SpO₂ (%) <span class="val" id="spo2Val">98</span></label><input id="spo2" type="range" min="50" max="100" step="1" value="98" /><input id="spo2N" class="num" type="number" step="1" value="98" inputmode="numeric" /></div>
+                    <div class="field"><label>PI (%) <span class="val" id="piVal">3.2</span></label><input id="pi" type="range" min="0" max="20" step="0.1" value="3.2" /><input id="piN" class="num" type="number" step="0.1" value="3.2" inputmode="decimal" /></div>
+                    <div class="field"><label>TOF (%) <span class="val" id="tofVal">90</span></label><input id="tof" type="range" min="0" max="100" step="1" value="90" /><input id="tofN" class="num" type="number" step="1" value="90" inputmode="numeric" /></div>
+                    <div class="field"><label>BIS <span class="val" id="bisVal">60</span></label><input id="bis" type="range" min="0" max="100" step="1" value="60" /><input id="bisN" class="num" type="number" step="1" value="60" inputmode="numeric" /></div>
+                    <div class="field"><label>Позиція вирізки <span class="val" id="notchPosVal">0.36</span></label><input id="notchPos" type="range" min="0.25" max="0.55" step="0.01" value="0.36" /></div>
+                    <div class="field"><label>Глибина вирізки <span class="val" id="notchDepthVal">0.20</span></label><input id="notchDepth" type="range" min="0.05" max="0.40" step="0.01" value="0.20" /></div>
+                    <div class="field"><label>Демпфування <span class="val" id="dampVal">0.25</span></label><input id="damp" type="range" min="0" max="0.85" step="0.01" value="0.25" /></div>
+                    <div class="field"><label>Аугментація <span class="val" id="augVal">0.30</span></label><input id="aug" type="range" min="0" max="0.7" step="0.01" value="0.30" /></div>
+                    <div class="field"><label>Діастолічний спад τ (частка T) <span class="val" id="tauVal">0.35</span></label><input id="tau" type="range" min="0.15" max="0.70" step="0.01" value="0.35" /></div>
+                    <div class="field"><label>EMD (R→викид) <span class="val" id="emdVal">120</span> мс</label><input id="emd" type="range" min="60" max="200" step="5" value="120" /></div>
+                    <div class="field"><label>PTT (місце виміру) <span class="val" id="pttVal">80</span> мс</label><input id="ptt" type="range" min="20" max="200" step="5" value="80" /></div>
+
+                    <div class="field"><label>&nbsp;</label><button id="regen" class="primary">Regenerate</button></div>
+                    <div class="field"><label>&nbsp;</label><button id="togglePlay">Pause</button></div>
+                  </div>
+                </div>
+
+                <div class="row">
+                  <div class="chart-panel">
+                    <div id="ecgChart"></div>
+                    <div class="legend">
+                      <span class="sw ecg"></span> ЕКГ Lead II-подібна (мВ)
+                    </div>
+                  </div>
+                  <div class="chart-panel">
+                    <div id="abpChart"></div>
+                    <div class="legend">
+                      <span class="sw abp"></span> Інвазивний артеріальний тиск (мм рт. ст.)
+                      <span class="alarm-lamp" id="alarmLamp"></span>
+                      <span class="warn" id="warn"></span>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="small">
+                  Осі X: останні −T…0 с (праворуч — «зараз»). Ізолінії: ЕКГ — 0 мВ; АТ — 0 мм рт. ст. <br />
+                  Управляй амплітудою кожного зубця (P/Q/R/S/T), їх тривалістю, а також тривалістю і рівнем сегментів PR/ST/TP.
+                  За замовчуванням TP автоматично дорівнює залишку циклу (можна вимкнути).
+                </div>
+              </div>
+
+              <!-- Overlay для Standby -->
+              <div class="overlay" id="standbyOverlay" style="display:none;">STANDBY</div>
+            </div>
+          </div>
+
+          <!-- Софт-клавіші (декоративні) -->
+          <div class="softkeys" aria-hidden="true">
+            <button class="softkey">Menu</button>
+            <button class="softkey">NIBP</button>
+            <button class="softkey">Silence</button>
+            <button class="softkey">Freeze</button>
+            <button class="softkey">Trend</button>
+          </div>
+          <div class="knob" aria-hidden="true" title="Rotary encoder"></div>
+
+          <!-- Кнопка живлення -->
+          <button class="power" id="powerBtn">Power</button>
         </div>
 
-        <div class="kpis" id="kpis">
-          <div class="kpi">ЧСС: <b id="hrKpi">60</b> уд/хв</div>
-          <div class="kpi">
-            САТ/ДАТ (вимір): <b id="bpKpi">120/70</b> мм рт. ст.
-          </div>
-          <div class="kpi">MAP≈ <b id="mapKpi">87</b></div>
-          <div class="kpi">EMD: <b id="emdKpi">120</b> мс</div>
-          <div class="kpi">PTT: <b id="pttKpi">80</b> мс</div>
-        </div>
-
-        <div class="controls group">
-          <h2 class="settings-title" id="settingsTitle">Налаштування</h2>
-          <button
-            id="toggleControls"
-            style="position: absolute; top: 10px; right: 10px"
-          >
-            −
-          </button>
-          <div class="group" style="margin-top: 20px">
-            <div class="field">
-              <label>ЧСС <span class="val" id="bpmVal">60</span> уд/хв</label
-              ><input
-                id="bpm"
-                type="range"
-                min="40"
-                max="140"
-                step="1"
-                value="60"
-              />
-            </div>
-            <div class="field">
-              <label
-                >Тривалість огляду
-                <span class="val" id="durVal">10</span> с</label
-              ><input
-                id="duration"
-                type="range"
-                min="4"
-                max="20"
-                step="1"
-                value="10"
-              />
-            </div>
-            <div class="field">
-              <label>Частота дискретизації (Гц)</label
-              ><input id="fs" type="number" step="1" value="500" />
-            </div>
-
-            <div class="field">
-              <label
-                >Амплітуда ЕКГ (глобальна, ×)
-                <span class="val" id="ecgAmpVal">1.00</span></label
-              ><input
-                id="ecgAmp"
-                type="range"
-                min="0.4"
-                max="2.0"
-                step="0.01"
-                value="1.0"
-              />
-            </div>
-          </div>
-
-          <div class="group">
-            <h3>ЕКГ — зубцы (амплитуды) и длительности</h3>
-            <div class="field">
-              <label>P амп (мВ)</label
-              ><input
-                id="pAmp"
-                class="num"
-                type="number"
-                step="0.01"
-                value="0.12"
-              />
-            </div>
-            <div class="field">
-              <label>P длит. (мс)</label
-              ><input
-                id="pDur"
-                class="num"
-                type="number"
-                step="5"
-                value="110"
-              />
-            </div>
-
-            <div class="field">
-              <label>Q амп (мВ)</label
-              ><input
-                id="qAmp"
-                class="num"
-                type="number"
-                step="0.01"
-                value="-0.15"
-              />
-            </div>
-            <div class="field">
-              <label>QRS длит. (мс)</label
-              ><input
-                id="qrsDur"
-                class="num"
-                type="number"
-                step="5"
-                value="90"
-              />
-            </div>
-
-            <div class="field">
-              <label>R амп (мВ)</label
-              ><input
-                id="rAmp"
-                class="num"
-                type="number"
-                step="0.01"
-                value="1.00"
-              />
-            </div>
-            <div class="field">
-              <label>PR сегм. (мс)</label
-              ><input
-                id="prSeg"
-                class="num"
-                type="number"
-                step="5"
-                value="160"
-              />
-            </div>
-
-            <div class="field">
-              <label>S амп (мВ)</label
-              ><input
-                id="sAmp"
-                class="num"
-                type="number"
-                step="0.01"
-                value="-0.25"
-              />
-            </div>
-            <div class="field">
-              <label>ST сегм. (мс)</label
-              ><input
-                id="stSeg"
-                class="num"
-                type="number"
-                step="5"
-                value="120"
-              />
-            </div>
-
-            <div class="field">
-              <label>T амп (мВ)</label
-              ><input
-                id="tAmp"
-                class="num"
-                type="number"
-                step="0.01"
-                value="0.35"
-              />
-            </div>
-            <div class="field">
-              <label>T длит. (мс)</label
-              ><input
-                id="tDur"
-                class="num"
-                type="number"
-                step="5"
-                value="180"
-              />
-            </div>
-
-            <div class="field">
-              <label>TP длит. (мс)</label
-              ><input
-                id="tpDur"
-                class="num"
-                type="number"
-                step="5"
-                value="280"
-              />
-            </div>
-            <div class="field">
-              <label>Auto TP (заповнити залишок)</label
-              ><input id="autoTP" type="checkbox" checked />
-            </div>
-          </div>
-
-          <div class="group">
-            <h3>ЕКГ — рівні сегментів / ізолінія</h3>
-            <div class="field">
-              <label>PR рівень (мВ)</label
-              ><input
-                id="prLvl"
-                class="num"
-                type="number"
-                step="0.01"
-                value="0"
-              />
-            </div>
-            <div class="field">
-              <label>ST рівень (мВ)</label
-              ><input
-                id="stLvl"
-                class="num"
-                type="number"
-                step="0.01"
-                value="0"
-              />
-            </div>
-            <div class="field">
-              <label>TP/ізолінія (мВ)</label
-              ><input
-                id="tpLvl"
-                class="num"
-                type="number"
-                step="0.01"
-                value="0"
-              />
-            </div>
-          </div>
-
-          <div class="group">
-            <h3>Параметри АТ та монітора</h3>
-            <div class="field">
-              <label>САТ <span class="val" id="sysVal">120</span></label
-              ><input
-                id="sys"
-                type="range"
-                min="80"
-                max="220"
-                step="1"
-                value="120"
-              /><input
-                id="sysN"
-                class="num"
-                type="number"
-                step="1"
-                value="120"
-                inputmode="numeric"
-              />
-            </div>
-            <div class="field">
-              <label>ДАТ <span class="val" id="diaVal">70</span></label
-              ><input
-                id="dia"
-                type="range"
-                min="40"
-                max="120"
-                step="1"
-                value="70"
-              /><input
-                id="diaN"
-                class="num"
-                type="number"
-                step="1"
-                value="70"
-                inputmode="numeric"
-              />
-            </div>
-            <div class="field">
-              <label>SpO₂ (%) <span class="val" id="spo2Val">98</span></label
-              ><input
-                id="spo2"
-                type="range"
-                min="50"
-                max="100"
-                step="1"
-                value="98"
-              /><input
-                id="spo2N"
-                class="num"
-                type="number"
-                step="1"
-                value="98"
-                inputmode="numeric"
-              />
-            </div>
-            <div class="field">
-              <label>PI (%) <span class="val" id="piVal">3.2</span></label
-              ><input
-                id="pi"
-                type="range"
-                min="0"
-                max="20"
-                step="0.1"
-                value="3.2"
-              /><input
-                id="piN"
-                class="num"
-                type="number"
-                step="0.1"
-                value="3.2"
-                inputmode="decimal"
-              />
-            </div>
-            <div class="field">
-              <label>TOF (%) <span class="val" id="tofVal">90</span></label
-              ><input
-                id="tof"
-                type="range"
-                min="0"
-                max="100"
-                step="1"
-                value="90"
-              /><input
-                id="tofN"
-                class="num"
-                type="number"
-                step="1"
-                value="90"
-                inputmode="numeric"
-              />
-            </div>
-            <div class="field">
-              <label>BIS <span class="val" id="bisVal">60</span></label
-              ><input
-                id="bis"
-                type="range"
-                min="0"
-                max="100"
-                step="1"
-                value="60"
-              /><input
-                id="bisN"
-                class="num"
-                type="number"
-                step="1"
-                value="60"
-                inputmode="numeric"
-              />
-            </div>
-
-            <div class="field">
-              <label
-                >Позиція вирізки
-                <span class="val" id="notchPosVal">0.36</span></label
-              ><input
-                id="notchPos"
-                type="range"
-                min="0.25"
-                max="0.55"
-                step="0.01"
-                value="0.36"
-              />
-            </div>
-            <div class="field">
-              <label
-                >Глибина вирізки
-                <span class="val" id="notchDepthVal">0.20</span></label
-              ><input
-                id="notchDepth"
-                type="range"
-                min="0.05"
-                max="0.40"
-                step="0.01"
-                value="0.20"
-              />
-            </div>
-            <div class="field">
-              <label
-                >Демпфування <span class="val" id="dampVal">0.25</span></label
-              ><input
-                id="damp"
-                type="range"
-                min="0"
-                max="0.85"
-                step="0.01"
-                value="0.25"
-              />
-            </div>
-            <div class="field">
-              <label
-                >Аугментація <span class="val" id="augVal">0.30</span></label
-              ><input
-                id="aug"
-                type="range"
-                min="0"
-                max="0.7"
-                step="0.01"
-                value="0.30"
-              />
-            </div>
-            <div class="field">
-              <label
-                >Діастолічний спад τ (частка T)
-                <span class="val" id="tauVal">0.35</span></label
-              ><input
-                id="tau"
-                type="range"
-                min="0.15"
-                max="0.70"
-                step="0.01"
-                value="0.35"
-              />
-            </div>
-            <div class="field">
-              <label
-                >EMD (R→викид)
-                <span class="val" id="emdVal">120</span> мс</label
-              ><input
-                id="emd"
-                type="range"
-                min="60"
-                max="200"
-                step="5"
-                value="120"
-              />
-            </div>
-            <div class="field">
-              <label
-                >PTT (місце виміру)
-                <span class="val" id="pttVal">80</span> мс</label
-              ><input
-                id="ptt"
-                type="range"
-                min="20"
-                max="200"
-                step="5"
-                value="80"
-              />
-            </div>
-
-            <div class="field">
-              <label>&nbsp;</label
-              ><button id="regen" class="primary">Regenerate</button>
-            </div>
-            <div class="field">
-              <label>&nbsp;</label><button id="togglePlay">Pause</button>
-            </div>
-          </div>
-        </div>
-
-        <div class="row">
-          <div class="chart-panel">
-            <div id="ecgChart"></div>
-            <div class="legend">
-              <span class="sw ecg"></span> ЕКГ Lead II‑подібна (мВ)
-            </div>
-          </div>
-          <div class="chart-panel">
-            <div id="abpChart"></div>
-            <div class="legend">
-              <span class="sw abp"></span> Інвазивний артеріальний тиск (мм рт.
-              ст.) <span class="warn" id="warn"></span>
-            </div>
-          </div>
-        </div>
-
-        <div class="small">
-          Осі X: останні −T…0 с (праворуч — «зараз»). Ізолінії: ЕКГ — 0 мВ; АТ —
-          0 мм рт. ст. <br />Управляй амплітудою кожного зубця (P/Q/R/S/T), їх
-          тривалістю, а також тривалістю і рівнем сегментів PR/ST/TP. За
-          замовчуванням TP автоматично дорівнює залишку циклу (можна вимкнути).
+        <div class="stand">
+          <div class="neck"></div>
+          <div class="base"></div>
         </div>
       </div>
     </div>
+
+    <!-- Твоя логіка рендеру -->
     <script type="module" src="{% static 'ECG_display/js/main.js' %}"></script>
+
+    <!-- Логіка: індикатор тривоги + живлення -->
+    <script>
+      (function(){
+        const panel  = document.querySelector('.panel');
+        const lamp   = document.getElementById('alarmLamp');
+        const warn   = document.getElementById('warn');
+        const devLed = document.getElementById('deviceAlarmLed');
+
+        const screen = document.getElementById('screen');
+        const ledPwr = document.getElementById('ledPower');
+        const standbyOverlay = document.getElementById('standbyOverlay');
+        const powerBtn = document.getElementById('powerBtn');
+
+        function numFrom(el){
+          if(!el) return NaN;
+          const t = (el.textContent || el.innerText || '').trim();
+          const m = t.match(/-?\d+/);
+          return m ? parseInt(m[0],10) : NaN;
+        }
+        function readHR(){ return numFrom(document.getElementById('hrKpi')); }
+        function readMAP(){ return numFrom(document.getElementById('mapKpi')); }
+
+        function updateAlarm(){
+          const hr  = readHR();
+          const map = readMAP();
+          const bad = (Number.isFinite(map) && map < 60) || (Number.isFinite(hr) && (hr < 40 || hr > 130));
+          const on = !screen.classList.contains('off') && bad;
+
+          panel.classList.toggle('alarm', !!on);
+          lamp && lamp.classList.toggle('on', !!on);
+          devLed && devLed.classList.toggle('on', !!on);
+          if(warn) warn.textContent = on ? 'АЛАРМ' : '';
+        }
+
+        function setPower(isOn){
+          screen.classList.toggle('off', !isOn);
+          ledPwr.classList.toggle('on', isOn);
+          ledPwr.classList.toggle('standby', !isOn);
+          standbyOverlay.style.display = isOn ? 'none' : 'flex';
+          updateAlarm();
+        }
+
+        if(powerBtn){
+          powerBtn.addEventListener('click', () => {
+            const isOn = screen.classList.contains('off');
+            setPower(isOn);
+          });
+        }
+
+        // Кнопка згортання контролів
+        const toggleBtn = document.getElementById('toggleControls');
+        const controls  = document.querySelector('.controls');
+        if(toggleBtn && controls){
+          toggleBtn.addEventListener('click', () => {
+            const hidden = controls.classList.toggle('collapsed');
+            controls.querySelectorAll('.group').forEach(g => g.style.display = hidden ? 'none' : '');
+            toggleBtn.textContent = hidden ? '+' : '−';
+          });
+        }
+
+        setInterval(updateAlarm, 500);
+        updateAlarm();
+      })();
+    </script>
   </body>
 </html>

@@ -213,3 +213,27 @@ def profile_view(request):
     # print("PROFILE VIEW USED; count=", len(paid_features))
 
     return render(request, "profile.html", {"paid_features": paid_features})
+
+    # ECG_display/views.py (додай імпорти згори файлу)
+from django.conf import settings
+from django.contrib.auth import login
+from django.views.decorators.http import require_http_methods
+from .forms import SignUpForm
+from django.shortcuts import render, redirect
+
+@require_http_methods(["GET", "POST"])
+def signup(request):
+    if request.user.is_authenticated:
+        # Уже залогінений — туди, куди тобі зручно
+        return redirect("profile")
+
+    form = SignUpForm(request.POST or None)
+    next_url = request.GET.get("next") or request.POST.get("next")
+
+    if request.method == "POST" and form.is_valid():
+        user = form.save()          # створює користувача
+        login(request, user)        # одразу логінить
+        return redirect(next_url or getattr(settings, "LOGIN_REDIRECT_URL", "home"))
+
+    return render(request, "signup.html", {"form": form, "next": next_url})
+

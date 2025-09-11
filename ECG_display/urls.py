@@ -1,6 +1,7 @@
 from django.urls import path
 from django.contrib.auth import views as auth_views
 from django.contrib.auth.decorators import login_required
+from django.views.generic import TemplateView
 from . import views
 
 urlpatterns = [
@@ -30,7 +31,8 @@ urlpatterns = [
         template_name="registration/password_reset_complete.html",
     ), name="password_reset_complete"),
 
-    # профіль — ТУТ МАЄ БУТИ САМЕ ВАША ФУНКЦІЯ
+    path("accounts/signup/", views.signup, name="signup"),
+  
     path("accounts/profile/", login_required(views.profile_view), name="profile"),
 
     # billing

@@ -118,7 +118,7 @@
         <img src="{% static 'img/logo.png' %}" alt="Лого сайту" />
       </a>
       <div class="nav-links">
-        <a class="nav-a" href="#features">Плани підписок</a>
+        <a class="nav-a" href="/billing/">Плани підписок</a>
         <a class="nav-a" href="#preparations">Режим навчання</a>
         <a class="nav-a" href="#video">Сайт школи</a>
        
@@ -129,6 +129,7 @@
   </form>
 {% else %}
   <a class="btn" href="{% url 'login' %}">Увійти</a>
+  <a class="btn" href="{% url 'signup' %}">Зареєструватись</a>
 {% endif %}
 
 
