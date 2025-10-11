@@ -81,7 +81,7 @@ document.addEventListener("DOMContentLoaded", () => {
         scenario: "vf",
         ecgMode: "vf",
         abpMode: "default",
-        bpm: 18, duration: 10, fs: 500, ecgAmp: 1.3,
+        bpm: 18, duration: 10, fs: 20, ecgAmp: 1.3,
         pAmp: 0, pDur: 60, qAmp: -0.1, qrsDur: 50, rAmp: 0.25, sAmp: -0.25,
         tAmp: 0, tDur: 60, prSeg: 0, stSeg: 0, tpDur: 120, autoTP: true,
         prLevel: 0, stLevel: 0, tpLevel: 0,
@@ -100,7 +100,7 @@ document.addEventListener("DOMContentLoaded", () => {
     // Ритм і «вікно»
     bpm: 96,           // помірна тахікардія при болю/стресі
     duration: 10,
-    fs: 500,
+    fs: 20,
 
     // Амплітуди/тривалості хвиль
     ecgAmp: 1.0,
@@ -159,7 +159,7 @@ mi_nstemi: {
 
     bpm: 88,
     duration: 10,
-    fs: 500,
+    fs: 60,
 
     ecgAmp: 1.0,
     pAmp: 0.12,
@@ -214,7 +214,7 @@ mi_nstemi: {
     // середня шлуночкова ЧСС (керує загальним «годинником» і АТ)
     bpm: 110,             // можеш крутити повзунком 90..150
     duration: 10,
-    fs: 500,
+    fs: 60,
 
     // амплітуди/тривалості — «звичні», але без P
     ecgAmp: 1.0,
@@ -265,7 +265,7 @@ mi_nstemi: {
     avbVentricularBpm: 26,
 
     // решта — звичні дефолти
-    duration: 10, fs: 500, ecgAmp: 1.0,
+    duration: 10, fs: 60, ecgAmp: 1.0,
     pAmp: 0.12, pDur: 110,
     qAmp: -0.12, qrsDur: 110, rAmp: 0.9, sAmp: -0.20,
     tAmp: 0.30, tDur: 180,
@@ -284,7 +284,7 @@ mi_nstemi: {
         scenario: "asystole",
         ecgMode: "flatline",
         abpMode: "flatline",
-        bpm: 40, duration: 10, fs: 500, ecgAmp: 0.5,
+        bpm: 40, duration: 10, fs: 60, ecgAmp: 0.5,
         pAmp: 0, pDur: 60, qAmp: 0, qrsDur: 40, rAmp: 0, sAmp: 0, tAmp: 0,
         prSeg: 0, stSeg: 0, tDur: 60, tpDur: 400, autoTP: true,
         prLevel: 0, stLevel: 0, tpLevel: 0,
