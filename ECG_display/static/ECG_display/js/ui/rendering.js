@@ -1,81 +1,70 @@
-// src/ui/rendering.js
+// static/ECG_display/js/ui/rendering.js
+
+// Створюємо шляхи для ЕКГ та АТ і повертаємо селектори
 export const setupTraces = (traceE, traceA) => {
+  const ecgIso = traceE
+    .append("path")
+    .attr("class", "iso ecg-iso")
+    .attr("fill", "none")
+    .attr("stroke", "#bbb")
+    .attr("stroke-width", 1);
+
   const ecgPath = traceE
     .append("path")
+    .attr("class", "wave ecg")
     .attr("fill", "none")
-    .attr(
-      "stroke",
-      getComputedStyle(document.documentElement)
-        .getPropertyValue("--ecg")
-        .trim() || "#aaf683"
-    )
-    .attr("stroke-width", 2)
-    .style("filter", "drop-shadow(0 0 6px rgba(170,246,131,.35))");
+    .attr("stroke", "#e53935")
+    .attr("stroke-width", 1.6);
+
+  const abpIso = traceA
+    .append("path")
+    .attr("class", "iso abp-iso")
+    .attr("fill", "none")
+    .attr("stroke", "#bbb")
+    .attr("stroke-width", 1);
 
   const abpPath = traceA
     .append("path")
+    .attr("class", "wave abp")
     .attr("fill", "none")
-    .attr(
-      "stroke",
-      getComputedStyle(document.documentElement)
-        .getPropertyValue("--abp")
-        .trim() || "#f4d35e"
-    )
-    .attr("stroke-width", 2)
-    .style("filter", "drop-shadow(0 0 6px rgba(244,211,94,.35))");
-
-  const ecgIso = traceE.append("line").attr("class", "iso");
-  const abpIso = traceA.append("line").attr("class", "iso");
+    .attr("stroke", "#1e88e5")
+    .attr("stroke-width", 1.6);
 
   return { ecgPath, abpPath, ecgIso, abpIso };
 };
 
-export const redrawECG = (
-  ecgBuf,
-  head,
-  bufLen,
-  idxToXecg,
-  ecgY,
-  ecgPath,
-  ecgIso,
-  innerWEcg,
-  innerHEcg
-) => {
-  let dStr = "";
-  for (let i = 0; i < bufLen; i++) {
-    const x = idxToXecg(i, bufLen);
-    const y = ecgY(ecgBuf[(head + i) % bufLen]);
-    dStr += i === 0 ? `M${x},${y}` : `L${x},${y}`;
-  }
-  ecgPath.attr("d", dStr);
-  ecgIso
-    .attr("x1", 0)
-    .attr("x2", innerWEcg)
-    .attr("y1", ecgY(0))
-    .attr("y2", ecgY(0));
+// Допоміжне: розмотуємо циклічний буфер у «пряму» послідовність
+const buildSeries = (buf, head) => {
+  const n = buf.length;
+  const out = new Array(n);
+  let k = 0;
+  for (let i = head; i < n; i++) out[k++] = buf[i];
+  for (let i = 0; i < head; i++) out[k++] = buf[i];
+  return out;
 };
 
-export const redrawABP = (
-  abpBuf,
-  head,
-  bufLen,
-  idxToXabp,
-  abpY,
-  abpPath,
-  abpIso,
-  innerWAbp,
-  innerHAbp
-) => {
-  let dStr = "";
-  for (let i = 0; i < bufLen; i++) {
-    const x = idxToXabp(i, bufLen);
-    const y = abpY(abpBuf[(head + i) % bufLen]);
-    dStr += i === 0 ? `M${x},${y}` : `L${x},${y}`;
-  }
-  abpPath.attr("d", dStr);
-  abpIso
-    .attr("x1", 0)
-    .attr("x2", innerWAbp)
-    .attr("y1", abpY(0))
-    .attr("y2", abpY(0));
+// Перемальовка ЕКГ
+export const redrawECG = (buf, head, bufLen, idxToX, yScale, pathSel, isoSel, W, H) => {
+  const data = buildSeries(buf, head);
+  const line = d3
+    .line()
+    .x((d, i) => idxToX(i, data.length))
+    .y((d) => yScale(d));
+  pathSel.attr("d", line(data));
+  // ізолінія 0 мВ
+  const y0 = yScale(0);
+  isoSel.attr("d", `M0,${y0}L${W},${y0}`);
+};
+
+// Перемальовка АТ
+export const redrawABP = (buf, head, bufLen, idxToX, yScale, pathSel, isoSel, W, H) => {
+  const data = buildSeries(buf, head);
+  const line = d3
+    .line()
+    .x((d, i) => idxToX(i, data.length))
+    .y((d) => yScale(d));
+  pathSel.attr("d", line(data));
+  // ізолінія 0 мм рт. ст.
+  const y0 = yScale(0);
+  isoSel.attr("d", `M0,${y0}L${W},${y0}`);
 };
