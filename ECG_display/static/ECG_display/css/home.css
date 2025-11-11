@@ -1,0 +1,305 @@
+:root {
+  --bg: #0b1020;
+  --card: #121a33;
+  --grid: #223055;
+  --accent: #4cc9f0;
+  --ecg: #aaf683;
+  --abp: #f4d35e;
+  --text: #d8e1ff;
+  --muted: #94a3b8;
+  --danger: #ff4d6d;
+  --ok: #aaf683;
+}
+html,
+body {
+  height: 100%;
+}
+body {
+  margin: 0;
+  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu,
+    Cantarell, Noto Sans, Helvetica, Arial, "Apple Color Emoji",
+    "Segoe UI Emoji";
+  background: radial-gradient(
+    1200px 800px at 60% -10%,
+    #1b2550 0%,
+    var(--bg) 60%
+  );
+  color: var(--text);
+  display: grid;
+  place-items: start center;
+  padding: 24px;
+}
+
+.wrap {
+  width: min(1300px, 94vw);
+  display: grid;
+  gap: 16px;
+}
+.panel {
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.03),
+    rgba(255, 255, 255, 0)
+  );
+  background-color: var(--card);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 18px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+  padding: 18px 18px 12px 18px;
+}
+h1 {
+  font-size: clamp(20px, 3vw, 28px);
+  margin: 0 0 4px;
+  letter-spacing: 0.3px;
+}
+.sub {
+  color: var(--muted);
+  font-size: 14px;
+  margin-bottom: 10px;
+}
+.controls {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap: 10px;
+  align-items: end;
+}
+.controls .field {
+  grid-column: span 3;
+}
+.controls .field.wide {
+  grid-column: span 6;
+}
+.controls .field.full {
+  grid-column: 1 / -1;
+}
+.field label {
+  display: block;
+  font-size: 12px;
+  color: var(--muted);
+  margin: 0 0 6px;
+}
+.field input[type="range"] {
+  width: 100%;
+}
+.field input[type="number"],
+.field input[type="text"] {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: #0d1430;
+  color: var(--text);
+}
+.field .val {
+  font-variant-numeric: tabular-nums;
+  margin-left: 6px;
+  color: var(--accent);
+}
+.num {
+  margin-top: 6px;
+  font-variant-numeric: tabular-nums;
+}
+.group {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap: 10px;
+  align-items: end;
+  padding: 10px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px dashed rgba(255, 255, 255, 0.08);
+}
+.group h3 {
+  grid-column: 1 / -1;
+  margin: 0 0 6px;
+  font-size: 13px;
+  color: var(--muted);
+  letter-spacing: 0.2px;
+}
+button {
+  padding: 10px 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.05),
+    rgba(255, 255, 255, 0)
+  );
+  color: var(--text);
+  cursor: pointer;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+}
+button.primary {
+  border-color: rgba(76, 201, 240, 0.45);
+}
+button:active {
+  transform: translateY(1px);
+}
+.row {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+.chart-panel {
+  padding-top: 10px;
+  position: relative;
+}
+.legend {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 8px;
+}
+.legend .sw {
+  width: 18px;
+  height: 3px;
+  border-radius: 2px;
+}
+.legend .ecg {
+  background: var(--ecg);
+  box-shadow: 0 0 8px 1px rgba(170, 246, 131, 0.35);
+}
+.legend .abp {
+  background: var(--abp);
+  box-shadow: 0 0 8px 1px rgba(244, 211, 94, 0.35);
+}
+svg {
+  width: 100%;
+  height: 260px;
+  display: block;
+  border-radius: 14px;
+}
+.kpis {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 6px 0 2px;
+}
+.kpis .kpi {
+  background: #0d1430;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  padding: 8px 10px;
+  font-variant-numeric: tabular-nums;
+}
+.warn {
+  color: var(--danger);
+  font-size: 12px;
+}
+.small {
+  font-size: 12px;
+  color: var(--muted);
+}
+/* Монітор поверх ABP */
+.monitor text {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-weight: 800;
+  fill: var(--abp);
+}
+.monitor .art {
+  font-size: 12px;
+  fill: var(--muted);
+  font-weight: 700;
+}
+.monitor .bp {
+  font-size: 28px;
+}
+.monitor .map,
+.monitor .sat,
+.monitor .tof,
+.monitor .bis {
+  font-size: 14px;
+  fill: var(--muted);
+  font-weight: 700;
+}
+.monitor.alert text.bp,
+.monitor.alert .sat,
+.monitor.alert .bis {
+  fill: var(--danger);
+}
+/* Осі */
+.axis path,
+.axis line {
+  stroke: rgba(255, 255, 255, 0.25);
+}
+.axis text {
+  fill: var(--muted);
+  font-size: 11px;
+}
+.label {
+  fill: var(--muted);
+  font-size: 11px;
+}
+/* Ізолінії */
+.iso {
+  stroke: rgba(255, 255, 255, 0.35);
+  stroke-dasharray: 4 3;
+}
+.quiz-panel { margin: 10px 0 16px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.quiz-msg { margin-left: 8px; font-weight: 600; }
+.quiz-ok   { color: #1a7f37; }   /* зелений */
+.quiz-bad  { color: #b91c1c; }   /* червоний */
+
+body.quiz-mode .controls { display: none; }      /* ховаємо велику панель налаштувань */
+.controls {
+  position: relative;
+  padding-top: 50px;
+  padding-bottom: 20px;
+}
+.settings-title {
+  position: absolute;
+  top: 0px;
+  left: 10px;
+  font-size: 1.5em;
+  font-weight: bold;
+}
+
+#ecgChart  svg g.grid,
+#plethChart svg g.grid,
+#abpChart  svg g.grid{
+  display: none !important;   /* або visibility: hidden !important; */
+}
+
+/* стало: три колонки: хвилі | великі цифри | картка сценарію */
+.screen-grid{
+  display:grid;
+  grid-template-columns: 1fr 320px 360px;
+  gap:10px;
+  padding:8px;
+  min-height:560px;
+}
+@media (max-width: 1280px){
+  .screen-grid{ grid-template-columns: 1fr 300px 320px; }
+}
+@media (max-width: 1100px){
+  /* на вузьких екранах все у стовпчик */
+  .screen-grid{ grid-template-columns: 1fr; }
+}
+
+/* стиль правої картки зі сценарієм */
+.clinical-card{
+  border:1px solid #0f1419;
+  border-radius:10px;
+  background:rgba(0,0,0,.35);
+  padding:12px 14px;
+  color:#d7e0ea;
+  position: sticky; top: 8px;   /* «прилипає» зверху всередині екрана */
+  max-height: 540px;            /* щоб не роздувалась більше хвиль */
+  overflow:auto;
+}
+.clinical-card .title{ font-weight:700; margin-bottom:8px; color:#c6d3df; }
+.clinical-card .section{ margin-top:10px; }
+.clinical-card .section-title{
+  font-size:12px; text-transform:uppercase; letter-spacing:.08em; color:#9fb0bf; margin-bottom:4px;
+}
+.clinical-card .section-body{ white-space: pre-line; font-size:14px; color:#e6edf3; }
+
+/* У вікторині ховаємо картку, а після "Показати відповідь" показуємо */
+body.quiz-mode .clinical-card{ display:none; }
+body.quiz-mode.quiz-revealed .clinical-card{ display:block; }
+

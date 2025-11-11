@@ -1,0 +1,60 @@
+
+{% load static %}
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>ICU Monitor</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
+<style>
+body { background: #000; color: #9fe8ff; }
+.grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.strip { background:#001015; border:1px solid #063; border-radius:8px; padding:8px; }
+canvas { width: 100%; height: 140px; background:#000; display:block; }
+.numerics { display:flex; gap:16px; flex-wrap:wrap; }
+.num { font-size: 1.6rem; }
+.label { font-size:.8rem; color:#8ab; }
+.ok { color:#7CFC00 } .warn { color:#FFD700 } .bad { color:#ff5555 }
+.toolbar { display:flex; gap:8px; align-items:center; }
+a, button, select { color:#0cf; }
+</style>
+</head>
+<body>
+<main class="container">
+<h2>ICU Monitor</h2>
+<div class="toolbar">
+<form action="" method="get">
+<label>Scenario:</label>
+<select onchange="window.location.href=this.value">
+{% for s in scenarios %}
+<option value="{% url 'monitor:activate_scenario' s.id %}" {% if s.is_active %}selected{% endif %}>{{ s.name }}</option>
+{% endfor %}
+</select>
+</form>
+<small id="phaseLabel"></small>
+</div>
+
+
+<section class="numerics">
+<div class="num"><span class="label">HR</span> <span id="hr" class="ok">--</span></div>
+<div class="num"><span class="label">SpO₂</span> <span id="spo2" class="ok">--</span>%</div>
+<div class="num"><span class="label">IBP</span> <span id="ibp" class="ok">--/--</span></div>
+<div class="num"><span class="label">NIBP</span> <span id="nibp" class="warn">—</span></div>
+<div class="num"><span class="label">BIS</span> <span id="bis" class="ok">--</span></div>
+<div class="num"><span class="label">TOF</span> <span id="tof" class="ok">-- (—%)</span></div>
+</section>
+
+
+<div class="grid">
+<div class="strip"><strong>ECG</strong><canvas id="ecg"></canvas></div>
+<div class="strip"><strong>IBP</strong><canvas id="ibpWave"></canvas></div>
+<div class="strip"><strong>Pleth</strong><canvas id="pleth"></canvas></div>
+<div class="strip"><strong>Resp</strong><canvas id="resp"></canvas></div>
+</div>
+</main>
+
+
+<script src="{% static 'monitor/monitor.js' %}"></script>
+</body>
+</html>
