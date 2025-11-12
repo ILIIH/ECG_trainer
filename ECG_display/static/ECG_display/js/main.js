@@ -888,7 +888,7 @@ const refreshAbpScale = () => {
   });
 }
 
-  // ==== DRUG UI (заповнення списків та обробка "Ввести")
+  // ==== DRUG UI boluses (заповнення списків та обробка "Ввести")
 (function setupDrugUi(){
   const sel = document.getElementById("drugSelect");
   const unitSel = document.getElementById("drugUnit");
@@ -930,6 +930,71 @@ const refreshAbpScale = () => {
     // (ефект згасає з часом сам по собі у кадрі)
 
   });
+})();
+
+  // ==== DRUG UI set up Infuzomat
+(function setupDrugInfUi(){
+  const sel = document.getElementById("drugInfSelect");
+  const unitSel = document.getElementById("drugInfUnit");
+  const doseInput = document.getElementById("drugInfDose");
+  const btnGive = document.getElementById("drugInfGive");
+  const btnStop = document.getElementById("drugInfStop");
+
+  if (!sel || !unitSel || !doseInput || !btnGive) return;
+
+  // заповнюємо список препаратів
+  Object.entries(DRUGS_INF).forEach(([key, d]) => {
+    const opt = document.createElement("option");
+    opt.value = key; opt.textContent = d.label;
+    sel.appendChild(opt);
+  });
+
+  function refreshUnits() {
+    unitSel.innerHTML = "";
+    const d = DRUGS_INF[sel.value];
+    if (!d) return;
+    d.units.forEach(u => {
+      const o = document.createElement("option"); o.value = o.textContent = u;
+      unitSel.appendChild(o);
+    });
+    unitSel.value = d.defaultUnit || d.units[0];
+  }
+
+  sel.addEventListener("change", refreshUnits);
+  refreshUnits();
+
+  let intervalId; 
+  btnGive.addEventListener("click", () => {
+    const key = sel.value;
+    const dose = parseFloat(doseInput.value);
+    const unit = unitSel.value;
+    if (!isFinite(dose) || dose <= 0) { alert("Вкажи коректну дозу > 0"); return; }
+    
+    const interval =1000; 
+    if (!intervalId) { 
+        const log =  document.getElementById("drugInfLog");
+        const line = document.createElement("div");
+        const d = DRUGS_INF[sel.value];
+        line.textContent = `[${new Date().toLocaleTimeString()}] ${d.label}: ${dose} ${unit} Iнфузомат запущено`;
+        log.prepend(line);
+
+        intervalId = setInterval(() => giveDrugAndLog(key, dose, unit, true), interval);
+    }
+    else {alert("Спочатку вiдключите iнфузомат")}
+  });
+
+  btnStop.addEventListener("click", () => {
+      if (intervalId) {
+        clearInterval(intervalId);
+        intervalId = null;
+        
+        const log =  document.getElementById("drugInfLog");
+        const line = document.createElement("div");
+        line.textContent = `[${new Date().toLocaleTimeString()}] Iнфузомат зупинено`;
+        log.prepend(line);
+      }
+  });
+ 
 })();
 
     const syncSysUI = () => { el.sysVal.textContent = state.sys; if (el.sys) el.sys.value = clamp(state.sys, 80, 220); if (el.sysN) el.sysN.value = state.sys; };
@@ -1392,9 +1457,112 @@ const DRUGS = {
   },
 };
 
+// Опис ефектів:
+// кожен apply(dose, unit) повертає { durationSec, hrMul, hrAdd, sysAdd, diaAdd }
+const DRUGS_INF = {
+  adrenaline: {
+  label: "Адреналін",
+  units: ["µg/c", "mg/c"],
+  defaultUnit: "µg",
+  apply(dose, unit, state) {
+    // Базовий ефект: тахі + гіпертензія (як було)
+    const ug = unit === "mg" ? (Number(dose) || 0) * 1000 : (Number(dose) || 0);
+    const x  = clampNum(ug / 100, 0, 3); // 100 µg ~ «умовний стандарт»
+
+    const baseEffect = {
+      durationSec: 60,
+      hrMul: 1 + 0.35 * x,
+      hrAdd: 0,
+      sysAdd: +25 * x,
+      diaAdd: +12 * x,
+    };
+
+    // СПЕЦВИПАДОК: якщо зараз асистолія — перевести у синусовий брадиритм
+    const isAsystole =
+      state?.scenario === "asystole" ||
+      state?.ecgMode === "flatline" ||
+      state?.abpMode === "flatline";
+
+    if (!isAsystole) return baseEffect;
+
+    // При асистолії: одноразово перемикаємо сценарій на синусову брадикардію
+    return {
+      ...baseEffect,
+      // Миттєва дія під час введення:
+      onApply() {
+        if (typeof window !== "undefined" && typeof window.__ECG_applyScenario === "function") {
+          // Перемикаємо на готовий сценарій брадикардії
+          window.__ECG_applyScenario("sinus_brady_mild", { skipUiSync: false });
+
+          // Після перемикання злегка підправимо цільові цифри
+          const st = (typeof getState === "function") ? getState() : null;
+          if (st) {
+            // Брадикардія ~48/хв уже є в сценарії; трошки підтримаємо тиск
+            st.sys = Math.max(st.dia + 5, 90);
+            st.dia = Math.max(50, Math.min(st.sys - 5, 65));
+          }
+        } else {
+          // Фолбек, якщо applyScenario недоступний: грубо вмикаємо синус і базові значення
+          const st = (typeof getState === "function") ? getState() : null;
+          if (st) {
+            st.ecgMode = "sinus";
+            st.abpMode = "default";
+            st.bpm = 48;
+            st.sys = 95;
+            st.dia = 60;
+            if (typeof updateEcgModel === "function") updateEcgModel(st);
+          }
+        }
+      },
+
+      // Власне фармефект після відновлення ритму:
+      // робимо М’ЯКІШИМИ зміни ЧСС, щоб справді залишалась «браді»
+      hrMul: 1 + 0.05 * x, // невелике підвищення, але не тахі
+      sysAdd: +18 * x,
+      diaAdd: +10 * x,
+    };
+  },
+},
+  atropine: {
+    label: "Атропін (IV)",
+    units: ["mg"],
+    defaultUnit: "mg",
+    // dose, unit, state — state потрібен для оцінки поточного ефективного ЧСС
+    apply(dose, unit, state) {
+      const mg = Number(dose) || 0;
+      const low = mg <= 0.5;
+
+      // Поточний ЕФЕКТИВНИЙ ЧСС з урахуванням попередніх ефектів
+      const bpmNow = (state && typeof computeEffectiveVitals === "function")
+        ? computeEffectiveVitals(state).bpmEff
+        : (state?.bpm ?? 60);
+
+      let hrAdd;
+      if (low) {
+        // браді: −30, але не нижче 20/хв
+        const roomDown = Math.max(0, bpmNow - 20);
+        hrAdd = -Math.min(30, roomDown);
+      } else {
+        // тахі: +60, але не вище 220/хв
+        const roomUp = Math.max(0, 220 - bpmNow);
+        hrAdd = +Math.min(60, roomUp);
+      }
+
+      return {
+        durationSec: 100000000, // тривалість ефекту, експоненційно згасає
+        hrMul: 0.5,        // множник не чіпаємо
+        hrAdd,           // розрахований зсув, без «пробою» 20..220
+        sysAdd: 0,
+        diaAdd: 0,
+      };
+    },
+  },
+};
+
 // Стан/журнал ефектів
 const activeDrugEffects = []; // масив { t0, tau, effect }
-function giveDrugAndLog(key, dose, unit) {
+function giveDrugAndLog(key, dose, unit, isConstant = false) {
+  console.log("Call func")
   const d = DRUGS[key];
   if (!d) return;
 
@@ -1411,18 +1579,17 @@ function giveDrugAndLog(key, dose, unit) {
   const tau = Math.max(0.5, (effect.durationSec || 30) / 2);
   activeDrugEffects.push({ t0, tau, effect });
 
-  // лог
-  const log = document.getElementById("drugLog");
+  // ④ лог
+  const log =  isConstant ? document.getElementById("drugInfLog") :document.getElementById("drugLog");
   if (log) {
     const line = document.createElement("div");
-    line.textContent = `[${new Date().toLocaleTimeString()}] ${d.label}: ${dose} ${unit}`;
+    if(!isConstant){line.textContent = `[${new Date().toLocaleTimeString()}] ${d.label}: ${dose} ${unit}`;} 
     log.prepend(line);
   }
 
   // негайно перемальовуємо
   if (typeof prefill === "function") { prefill(); redrawEcgNow(); redrawAbpNow(); }
 }
-
 
 // Агрегація активних ефектів у модифікатори HR/BP
 function getDrugModifiers() {
