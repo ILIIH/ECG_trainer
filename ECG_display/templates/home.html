@@ -189,6 +189,13 @@
   .wave .chart{ position:absolute; inset:0; }
   .chart svg{ display:block; }
 
+  .buttons-row .button-group {
+    display: flex;
+    flex-direction: row;
+    gap: 10px; /* space between buttons */
+    align-items: center;
+  }
+
   /* Кольори кривих (без JS правок) */
   #ecgChart  path, #ecgChart  .line, #ecgChart  svg path{ stroke:var(--col-ecg)   !important; }
   #plethChart path, #plethChart .line, #plethChart svg path{ stroke:var(--col-pleth)!important; }
@@ -486,7 +493,7 @@
   </main>
       <aside class="right-dock" id="rightDock">
   <h2 class="settings-title">Керування</h2>
-  <!-- ВЕРХ: Препарати -->
+  <!-- ВЕРХ: Препарати  (болюси) -->
 
       <h3>Препарати (болюси)</h3>
 
@@ -515,7 +522,39 @@
         <div id="drugLog" style="font-size:12px; color:#9fb0bf; max-height:120px; overflow:auto"></div>
       </div>
       
+  <!-- СЕРЕДИНА: Препарати (iнфузомат) -->
 
+      <h3>Препарати (iнфузомат)</h3>
+
+      <div class="field field--stack">
+        <label>Назва</label>
+        <select id="drugInfSelect"></select>
+      </div>
+
+      <div class="field">
+        <label>Доза / с</label>
+        <input id="drugInfDose" class="num" type="number" step="0.01" value="1" inputmode="decimal" />
+      </div>
+
+      <div class="field field--stack">
+        <label>Одиниці</label>
+        <select id="drugInfUnit"></select>
+      </div>
+
+      <div class="field field--stack">
+        <label>Розведення</label>
+        <select id="dilutionUnit"></select>
+      </div>
+      
+      <div class="field">
+        <label>&nbsp;</label>
+          <button id="drugInfGive" class="primary">Пiдключити</button>
+      </div>
+
+      <div class="field field--stack">
+        <label>Історія</label>
+        <div id="drugInfLog" style="font-size:12px; color:#9fb0bf; max-height:120px; overflow:auto"></div>
+      </div>
 
 
     <!-- НИЗ: Дефібрилятор -->
@@ -924,9 +963,6 @@ const PLETH_SPAN = 0.70; // вертикальний діапазон хвилі
   if (root) new MutationObserver(wipe).observe(root, {childList:true, subtree:true});
 })();
 
-
-
-
 </script>
 <script>
 (function killMiniOverlay(){
@@ -1085,5 +1121,9 @@ document.addEventListener('DOMContentLoaded', ()=>{
   })();
 </script>
 
-  </body>
+{% load static %}
+<script>
+  const infuzomatUrl = "{% static 'img/infuzomat.png' %}";
+</script>
+</body>
 </html>
