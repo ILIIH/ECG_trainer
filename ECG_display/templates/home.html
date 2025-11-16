@@ -541,14 +541,15 @@
         <select id="drugInfUnit"></select>
       </div>
 
-        <div class="field buttons-row">
-        <label>&nbsp;</label>
-        <div class="button-group">
-          <button id="drugInfGive" class="primary">Пiдключити</button>
-          <button id="drugInfStop" class="primary">Вiдключити</button>
-        </div>
+      <div class="field field--stack">
+        <label>Розведення</label>
+        <select id="dilutionUnit"></select>
       </div>
-
+      
+      <div class="field">
+        <label>&nbsp;</label>
+          <button id="drugInfGive" class="primary">Пiдключити</button>
+      </div>
 
       <div class="field field--stack">
         <label>Історія</label>
@@ -962,9 +963,6 @@ const PLETH_SPAN = 0.70; // вертикальний діапазон хвилі
   if (root) new MutationObserver(wipe).observe(root, {childList:true, subtree:true});
 })();
 
-
-
-
 </script>
 <script>
 (function killMiniOverlay(){
@@ -1123,5 +1121,9 @@ document.addEventListener('DOMContentLoaded', ()=>{
   })();
 </script>
 
-  </body>
+{% load static %}
+<script>
+  const infuzomatUrl = "{% static 'img/infuzomat.png' %}";
+</script>
+</body>
 </html>
