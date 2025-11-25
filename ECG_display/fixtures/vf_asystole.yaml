@@ -1,0 +1,45 @@
+scenario:
+name: VF Arrest Demo
+description: Sinus tachy → VF → asystole
+total_duration_sec: 240
+phases:
+- duration: 60
+notes: Tachycardia
+state:
+rhythm: tachy
+hr: 150
+spo2: 96
+bis: 45
+tof_count: 4
+tof_ratio: 100
+art: [140, 80]
+nibp: [140, 80]
+nibp_interval: 90
+
+
+- duration: 60
+notes: VF
+state:
+rhythm: vf
+hr: 0
+spo2: 85
+bis: 30
+tof_count: 0
+tof_ratio: 0
+art: [0, 0]
+nibp: [0, 0]
+nibp_interval: 9999
+
+
+- duration: 120
+notes: Asystole
+state:
+rhythm: asystole
+hr: 0
+spo2: 70
+bis: 0
+tof_count: 0
+tof_ratio: 0
+art: [0, 0]
+nibp: [0, 0]
+nibp_interval: 9999

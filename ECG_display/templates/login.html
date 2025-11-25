@@ -1,0 +1,111 @@
+{% load static %}
+<!doctype html>
+<html lang="uk">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Увійти в акаунт</title>
+  <meta name="description" content="Вхід до особистого кабінету" />
+  <style>
+    :root{
+      --bg:#0b0f14; --fg:#eaf2ff; --muted:#a1b3c9; --brand:#6ee7ff; --accent:#a78bfa; --border:rgba(255,255,255,.12); --card:rgba(255,255,255,.06); --glass:rgba(255,255,255,.08);
+      --shadow:0 20px 60px rgba(0,0,0,.35), 0 2px 8px rgba(0,0,0,.3);
+      --error:#ff6b6b; --ok:#21f6a1;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{margin:0; font-family:Inter, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, "Noto Sans", "Helvetica Neue", Arial; color:var(--fg);
+      background:
+        radial-gradient(1200px 600px at 10% -10%, #18304a 0%, transparent 60%),
+        radial-gradient(1000px 500px at 110% 0%, #3a1c66 0%, transparent 55%),
+        radial-gradient(900px 800px at -10% 120%, #0e515f 0%, transparent 70%),
+        var(--bg);
+      overflow-x:hidden;
+    }
+    .background-anim::before{content:""; position:fixed; inset:-20% -20% -20% -20%; pointer-events:none; z-index:-1; background: conic-gradient(from 180deg at 50% 50%, rgba(110,231,255,.10), rgba(167,139,250,.10), rgba(110,231,255,.10)); filter: blur(90px); opacity:.9; animation: spin 36s linear infinite;}
+    @keyframes spin{to{transform:rotate(1turn)}}
+
+    .wrap{min-height:100%; display:grid; place-items:center; padding:40px 16px}
+    .card{width:min(480px, 100%); background:var(--glass); border:1px solid var(--border); border-radius:22px; box-shadow:var(--shadow); padding:28px}
+    .brand{display:flex; align-items:center; gap:12px; margin-bottom:14px}
+    .brand img{height:40px; width:auto}
+    h1{margin:0 0 4px; font-size:28px}
+    p.sub{margin:0 0 18px; color:var(--muted)}
+
+    form{display:grid; gap:14px}
+    label{font-size:14px; color:#cfe2ff}
+    .field{position:relative}
+    .input{width:100%; padding:14px 44px 14px 14px; border-radius:14px; border:1px solid var(--border); background:rgba(255,255,255,.04); color:var(--fg); outline:none}
+    .input:focus{border-color:rgba(110,231,255,.55); box-shadow:0 0 0 3px rgba(110,231,255,.12)}
+    .toggle{position:absolute; right:8px; top:50%; transform:translateY(-50%); background:transparent; border:0; color:var(--muted); cursor:pointer; padding:8px; border-radius:10px}
+    .toggle:hover{color:var(--fg); background:rgba(255,255,255,.06)}
+
+    .errorlist{list-style:none; margin:6px 0 0; padding:0; color:var(--error); font-size:13px}
+    .nonfield{margin:-6px 0 6px; color:var(--error); font-size:14px}
+
+    .row{display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap}
+    .remember{display:flex; align-items:center; gap:8px; color:var(--muted); font-size:14px}
+
+    .btn{--br:linear-gradient(120deg, var(--brand), var(--accent)); width:100%; display:inline-flex; align-items:center; justify-content:center; gap:.6rem; padding:14px 18px; border-radius:16px; text-decoration:none; color:#081116; font-weight:700; letter-spacing:.3px; background:var(--br); box-shadow:var(--shadow); border:0; cursor:pointer}
+    .btn:hover{filter:saturate(1.12)}
+
+    .muted{color:var(--muted); font-size:14px}
+    .muted a{color:var(--fg)}
+
+    @media (prefers-reduced-motion: reduce){ .background-anim::before{animation:none} }
+  </style>
+</head>
+<body class="background-anim">
+  <main class="wrap">
+    <section class="card" aria-label="Форма входу">
+      <div class="brand">
+        <img src="{% static 'img/logo.png' %}" alt="Лого"/>
+        <div>
+          <h1>Вхід</h1>
+          <p class="sub">Увійдіть до особистого кабінету</p>
+        </div>
+      </div>
+
+      {# Неформальні (загальні) помилки форми #}
+      {% if form.non_field_errors %}
+        <div class="nonfield">{{ form.non_field_errors }}</div>
+      {% endif %}
+
+      <form method="post" action="{% url 'login' %}" novalidate>
+        {% csrf_token %}
+
+        <div class="field">
+          <label for="id_username">Логін або Email</label>
+          <input id="id_username" class="input" type="text" name="username" autocomplete="username" required autofocus placeholder="your@email" value="{{ form.data.username|default:'' }}"/>
+          {% if form.username.errors %}
+            <ul class="errorlist">{% for e in form.username.errors %}<li>{{ e }}</li>{% endfor %}</ul>
+          {% endif %}
+        </div>
+
+        <div class="field">
+          <label for="id_password">Пароль</label>
+          <input id="id_password" class="input" type="password" name="password" autocomplete="current-password" required placeholder="••••••••"/>
+          <button type="button" class="toggle" aria-label="Показати пароль" onclick="(function(b,i){ i.type = i.type==='password' ? 'text' : 'password'; b.setAttribute('aria-label', i.type==='password' ? 'Показати пароль' : 'Приховати пароль'); })(this, document.getElementById('id_password'))">👁️</button>
+          {% if form.password.errors %}
+            <ul class="errorlist">{% for e in form.password.errors %}<li>{{ e }}</li>{% endfor %}</ul>
+          {% endif %}
+        </div>
+
+        {# Підтримка next-переадресації #}
+        {% if next %}
+          <input type="hidden" name="next" value="{{ next }}" />
+        {% endif %}
+
+        <div class="row">
+          <label class="remember"><input type="checkbox" name="remember"/> Запам'ятати мене</label>
+          <a class="muted" href="{% url 'password_reset' %}">Забули пароль?</a>
+        </div>
+
+        <button class="btn" type="submit">Увійти</button>
+      </form>
+
+      
+    </section>
+  </main>
+</body>
+</html>

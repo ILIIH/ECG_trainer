@@ -1,0 +1,914 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="uk">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ЕКГ + АТ — ICU Monitor (Mindray-style)</title>
+
+    <!-- D3 для графіків -->
+    <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+
+    <!-- Шрифти: моно для «цифр» + базовий -->
+    <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Inter:wght@400;600;700&display=swap" rel="stylesheet" />
+
+    <!-- Ваш базовий css -->
+    <link rel="stylesheet" href="{% static 'ECG_display/css/home.css' %}" />
+
+    <style>
+  /* ===== THEME ===== */
+      
+
+  :root{
+    --bg:#0b0f12; --dock:#12161b; --dock-border:#20262d; --bezel:#1b2026;
+    --txt:#d7e0ea; --accent:#36c2ff;
+    --wave-h: 200px;          /* висота однієї доріжки (ECG/Pleth/ABP) */
+    --vitals-w: 260px;        /* ширина колонки з великими цифрами всередині монітора */
+    --left-rail-w: 360px;     /* ліва колонка (клінічний сценарій) */
+    --right-dock-w: 420px;    /* права колонка (панель керування) */
+    --col-ecg:#33ff66;
+    --col-pleth:#00e5ff;
+    --col-abp:#ff3b30;
+    --col-map:#ffd60a;
+    --col-bis:#ffcc00;
+  }
+
+  /* ТІЛЬКИ для панелі препаратів */
+#drugPanel .field{
+  display: grid;            /* можна й flex, але grid ок */
+  grid-template-columns: 1fr; /* одна колонка: все стає в стовпчик */
+  gap: 6px;                 /* невеликий вертикальний відступ */
+}
+#drugPanel .field label{
+  margin: 0;                /* чисто, без зайвих відступів */
+}
+#drugPanel .field input,
+#drugPanel .field select,
+#drugPanel .field button{
+  width: 100%;              /* елементи розтягуються по ширині */
+}
+
+  html,body{
+    height:100%; margin:0; background:var(--bg); color:var(--txt);
+    font-family:Inter, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, "Helvetica Neue", Arial, "Noto Sans";
+  }
+
+  /* ===== LAYOUT: monitor сверху, panel снизу ===== */
+/* ===== ТРИ КОЛОНКИ: клініка | монітор | керування ===== */
+.app{
+  display:grid;
+  grid-template-columns: var(--left-rail-w) minmax(1200px, 1fr) var(--right-dock-w);
+  gap:16px;
+  padding:16px;
+  box-sizing:border-box;
+  max-width: 1920px;   /* щоб середня колонка могла реально розтягнутись */
+  margin: 0 auto;
+}
+@media (max-width: 1280px){
+  .app{ grid-template-columns: 320px minmax(520px, 1fr) 380px; }
+}
+@media (max-width: 1100px){
+  .app{ grid-template-columns: 1fr; grid-template-rows: auto auto auto; }
+}
+.left-rail{
+  background:#11161b; border:1px solid #26303a; border-radius:12px; padding:14px;
+  min-height: calc(var(--wave-h)*3 + 24px + 60px);
+}
+/* Ліва колонка з клінічною карткою */
+.clinical-pane{
+  background:linear-gradient(180deg,#242a31 0%,var(--bezel) 100%);
+  border:1px solid #0f1419; border-radius:16px; padding:12px;
+}
+.clinical-card{
+  border:1px solid #0f1419; border-radius:10px; background:rgba(0,0,0,.35);
+  padding:12px 14px; color:#d7e0ea;
+  max-height: calc(100vh - 160px); overflow:auto; position:sticky; top:8px;
+}
+.clinical-card .title{ font-weight:700; font-size:18px; margin-bottom:8px; }
+.clinical-card .section{ margin:10px 0; }
+.clinical-card .section-title{ color:#9fb0bf; font-size:13px; text-transform:uppercase; letter-spacing:.06em; margin-bottom:4px; }
+.clinical-card .section-body{ white-space:pre-wrap; }
+
+/* Права колонка: контроль-док (стартує згорнутий) */
+.control-dock.collapsed .group,
+.control-dock.collapsed h2,
+.control-dock.collapsed #btnVF { display:none; }
+.control-dock.collapsed #toggleControls{ display:block; width:100%; }
+
+/* ===== Препарати (список) ===== */
+#drugList{ list-style:none; margin:8px 0 0; padding:0; max-height:220px; overflow:auto; }
+#drugList li{
+  display:flex; justify-content:space-between; gap:8px;
+  padding:6px 8px; border:1px solid #26303a; border-radius:8px; margin-bottom:6px;
+  background:#0e141a;
+}
+#drugList .meta{ color:#9fb0bf; font-size:12px; }
+
+/* ===== ДЕФІБРИЛЯТОР ===== */
+.defib{ display:grid; gap:10px; align-items:center; }
+.defib .row{ display:flex; align-items:center; gap:10px; }
+.defib .power.on{ background:#0b3; border-color:#194; }
+.knob-wrap{ display:flex; align-items:center; gap:12px; }
+.knob{
+  width:184px; height:84px; border-radius:50%; border:2px solid #2a333c; background:#0c1116;
+  display:grid; place-items:center; transition:transform .2s ease;
+  box-shadow: inset 0 2px 8px rgba(0,0,0,.5);
+}
+.knob span{ font-size:12px; color:#cfe; text-align:center; }
+#defibEnergy{ width:100%; }
+.defib-status{ font-size:14px; color:#9fb0bf; min-height:20px; }
+
+
+  /* ===== MONITOR (верхній блок) ===== */
+  .monitor{
+    grid-row:1; grid-column:1;
+    background:linear-gradient(180deg,#242a31 0%,var(--bezel) 100%);
+    border-radius:16px;
+    box-shadow:0 12px 30px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.05);
+    padding:12px 12px 8px;
+  }
+  .brandbar{
+    display:flex; justify-content:space-between; align-items:center;
+    color:#a8b3bf; text-transform:uppercase; letter-spacing:.12em;
+    font-weight:700; font-size:12px; margin-bottom:8px;
+  }
+  .brandbar .led{
+    width:10px; height:10px; border-radius:50%; margin-left:8px;
+    background:#0aff43; box-shadow:0 0 8px #0aff43cc; animation:blip 1.4s infinite steps(1,end);
+  }
+  @keyframes blip{0%{opacity:1} 10%{opacity:.1} 100%{opacity:.1}}
+
+  /* Екран без глобальної міліметровки */
+  .screen{
+    background:radial-gradient(ellipse at 50% 15%, #0a0f14 0%, #06090c 35%, #000 100%);
+    border-radius:10px; overflow:hidden; border:1px solid #0f1419; position:relative;
+  }
+
+  /* Внутрішня сітка: хвилі + великі цифри праворуч */
+.screen-grid{
+  display:grid;
+  grid-template-columns: 1fr var(--vitals-w);
+  gap:6px; padding:8px;
+  min-height: calc(var(--wave-h)*3 + 24px);
+}
+  @media (max-width: 1100px){
+    .screen-grid{ grid-template-columns: 1fr 260px; }
+  }
+
+  /* Доріжки хвиль */
+  .waves{
+    display:grid;
+    grid-template-rows: repeat(3, var(--wave-h));
+    gap:6px;
+  }
+
+  .wave{
+    position:relative; border:1px solid #0f1419; border-radius:6px;
+    background:rgba(0,0,0,.35); overflow:hidden;
+     min-height: var(--wave-h); 
+  }
+  /* Міліметровка тільки всередині .wave */
+  .wave::before, .wave::after{ position:absolute; inset:0; pointer-events:none; z-index:0; content:""; }
+  .wave::before{
+    opacity:.18;
+    background:
+      linear-gradient(transparent 31px, #2a3036 32px),
+      linear-gradient(90deg, transparent 31px, #2a3036 32px);
+    background-size:32px 32px, 32px 32px;   /* великі квадрати */
+  }
+  .wave::after{
+    opacity:.12;
+    background:
+      linear-gradient(transparent 7px, #1d2329 8px),
+      linear-gradient(90deg, transparent 7px, #1d2329 8px);
+    background-size:8px 8px, 8px 8px;       /* «міліметровка» */
+  }
+
+  .wave .lead{ position:absolute; top:4px; left:6px; font-size:12px; color:#9fb0bf; letter-spacing:.08em; text-transform:uppercase; z-index:2; }
+  .wave .scale{ position:absolute; top:4px; right:6px; font-size:12px; color:#9fb0bf; z-index:2; }
+  .wave .chart{ position:absolute; inset:0; }
+  .chart svg{ display:block; }
+
+  .buttons-row .button-group {
+    display: flex;
+    flex-direction: row;
+    gap: 10px; /* space between buttons */
+    align-items: center;
+  }
+
+  /* Кольори кривих (без JS правок) */
+  #ecgChart  path, #ecgChart  .line, #ecgChart  svg path{ stroke:var(--col-ecg)   !important; }
+  #plethChart path, #plethChart .line, #plethChart svg path{ stroke:var(--col-pleth)!important; }
+  #abpChart  path, #abpChart  .line, #abpChart  svg path{ stroke:var(--col-abp)   !important; }
+
+  #ecgChart, #plethChart, #abpChart{ width:100%; height:100%; }
+  .legend-inline{ position:absolute; bottom:6px; left:8px; font-size:12px; color:#9fb0bf; z-index:2; }
+  .warn{ color:#ffcc00; }
+
+  /* Великі цифри праворуч */
+  .vitals{ display:grid; grid-template-rows:repeat(4, minmax(0,1fr)); gap:6px; align-items:stretch; }
+  .vital{
+    display:grid; grid-template-columns:1fr; align-content:center; justify-items:end;
+    border:1px solid #0f1419; border-radius:6px; background:rgba(0,0,0,.35); padding:6px 10px;
+  }
+  .vital .label{ font-size:14px; text-transform:uppercase; letter-spacing:.12em; color:#9fb0bf; justify-self:start; }
+  .vital .value{ font-family:"Share Tech Mono", ui-monospace, Menlo, Consolas, monospace; font-size:80px; line-height:.95; }
+  .vital small{ font-size:16px; color:#9fb0bf; }
+  .vital.hr   .value{ color:var(--col-ecg); }
+  .vital.spo2 .value{ color:var(--col-pleth); }
+  .vital.bp   .value{ color:var(--col-abp); }
+  .vital.bis  .value{ color:var(--col-bis); }
+  .vital.bp .map{ color:var(--col-abp); font-family:"Share Tech Mono", ui-monospace, monospace; font-size:28px; }
+
+  /* Температура знизу по центру */
+  .tempbar{
+    position:absolute; left:50%; transform:translateX(-50%); bottom:6px;
+    font-size:28px; font-family:"Share Tech Mono", ui-monospace, monospace; color:#e0e6ec;
+  }
+
+  /* Софт-клавіші під екраном (усередині монітора) */
+  .softkeys{
+    display:grid; grid-template-columns:repeat(8,1fr); gap:6px;
+    background:#aeb6bf; border-radius:8px; padding:6px; margin-top:6px;
+  }
+  .softkeys .sk{
+    background:#d7dbe0; border:1px solid #828b95; border-radius:6px;
+    padding:10px 8px; color:#00121e; font-weight:600; box-shadow:inset 0 1px 0 #fff8;
+  }
+
+  /* ===== CONTROL DOCK (нижній блок) ===== */
+  .control-dock{
+    grid-row:2; grid-column:1;
+    background:linear-gradient(180deg, #141a21, var(--dock));
+    border:1px solid var(--dock-border);
+    border-radius:12px;
+    padding:14px;
+    box-shadow:0 8px 24px rgba(0,0,0,.35);
+    width:100%;
+    max-height:none;      /* повна висота */
+    overflow:visible;     /* нічого не обрізаємо */
+  }
+
+  .control-dock h2, .control-dock h3{ margin:12px 0 8px; color:#c6d3df; }
+  .group{
+    border:1px solid #26303a; border-radius:10px; padding:12px; margin-bottom:12px;
+    background:#0c1116;
+  }
+  .field{
+    display:grid; grid-template-columns:1fr 1fr; gap:8px; align-items:center; margin:8px 0;
+  }
+  .field label{ color:#a8b3bf; font-size:14px; }
+  .field input[type="number"], .field input[type="range"], .field select{ width:100%; }
+
+  input,select,button{
+    background:#0e141a; color:var(--txt); border:1px solid #2a333c; border-radius:8px; padding:8px 10px;
+  }
+  input[type="range"]{ accent-color:var(--accent); }
+  button.primary{ background:#0d2836; border-color:#1a4152; }
+  button#toggleControls{ position:static; margin-left:auto; }
+  
+  /* Згортання нижньої панелі */
+  .control-dock.collapsed .group,
+  .control-dock.collapsed h2,
+  .control-dock.collapsed #btnVF{ display:none; }
+  .control-dock.collapsed #toggleControls{ display:block; width:100%; }
+
+  /* Примусити контейнери під SVG займати весь блок */
+  #ecgChart, #plethChart, #abpChart{ width:100%; height:100%; }
+
+  /* D3 осі (щоб пасували стилю) */
+  .axis path, .axis line{ stroke:#2c3944; }
+  .axis text{ fill:#9fb0bf; font-size:10px; }
+
+  /* Кнопка в шапці */
+.brand-btn{
+  border:1px solid #2a333c; background:#0e141a;
+  color:#d7e0ea; border-radius:8px; padding:6px 10px; cursor:pointer;
+}
+
+/* Коли ліва панель схована */
+.app.hide-left .left-rail{ display:none; }
+
+/* Перебудовуємо ґрід на 2 колонки: центр + права */
+.app.hide-left{
+  grid-template-columns: minmax(1200px, 1fr) var(--right-dock-w);
+}
+@media (max-width:1280px){
+  .app.hide-left{ grid-template-columns: minmax(520px, 1fr) 380px; }
+}
+@media (max-width:1100px){
+  .app.hide-left{ grid-template-columns: 1fr; }
+}
+/* Ховаємо праву колонку повністю */
+.app.hide-right .control-dock{ display:none; }
+
+/* Перебудова гріда: лишаються ліва + центр */
+.app.hide-right{
+  grid-template-columns: var(--left-rail-w) minmax(1200px, 1fr);
+}
+@media (max-width:1280px){
+  .app.hide-right{ grid-template-columns: 320px minmax(520px, 1fr); }
+}
+@media (max-width:1100px){
+  .app.hide-right{ grid-template-columns: 1fr; }
+}
+
+/* (необов’язково) якщо сховані обидві бокові — тільки центр */
+.app.hide-left.hide-right{
+  grid-template-columns: 1fr;
+}
+/* Тільки для панелі препаратів — робимо одну колонку */
+#drugPanel .field{
+  display: grid;              /* зберігаємо той самий підхід */
+  grid-template-columns: 1fr; /* одна колонка => кожен елемент з нового рядка */
+  gap: 6px;
+  align-items: start;
+}
+
+/* Трошки косметики */
+#drugPanel .field label{
+  margin: 0;
+}
+
+#drugPanel .field input,
+#drugPanel .field select,
+#drugPanel .field button{
+  width: 100%;
+  justify-self: stretch;
+}
+/* Лейаут "з нового рядка" для окремих полів */
+.field--stack{
+  grid-template-columns: 1fr;   /* одна колонка */
+}
+.field--stack > *{
+  grid-column: 1 / -1;          /* елементи займають всю ширину */
+}
+.field--stack label{
+  margin-bottom: 6px;           /* невеликий відступ під підписом */
+}
+/* Стековий режим для всієї групи (всі .field всередині — з нового рядка) */
+.group--stack .field{
+  display: grid;
+  grid-template-columns: 1fr;  /* одна колонка */
+  gap: 6px;
+  margin: 8px 0;
+}
+.group--stack .field > *{
+  grid-column: 1 / -1;         /* елемент займає всю ширину */
+}
+.group--stack .field label{
+  margin-bottom: 4px;          /* невеликий відступ під підписом */
+}
+
+/* Кнопки — на окремому рядку, на всю ширину */
+.group--stack .field.actions label{ display:none; }
+.group--stack .field.actions button{ width: 100%; }
+
+/* (необов’язково) зробити select/input на всю ширину в стек-групі */
+.group--stack .field select,
+.group--stack .field input{ width: 100%; }
+
+/* Стек-вигляд на 3 колонки для дрібних полів */
+.group--stack .field.three{
+  display:grid;
+  grid-template-columns: repeat(3, minmax(0,1fr));
+  gap:8px;
+}
+.group--stack .field.three > div{ display:flex; flex-direction:column; }
+
+/* Список інфузій */
+#pumpList{ display:flex; flex-direction:column; gap:8px; }
+
+/* Картка інфузії */
+.pump-card{
+  display:grid;
+  grid-template-columns: 60px 1fr;
+  gap:10px;
+  align-items:center;
+  padding:10px;
+  border:1px solid #26303a;
+  border-radius:10px;
+  background:#0b1116;
+}
+
+/* Шприц (SVG) */
+.syringe{
+  width:60px; height:140px;
+}
+.syringe .barrel{ fill:#1a2430; stroke:#314457; stroke-width:1.2; }
+.syringe .fluid{ fill:#2ed3ff; }
+.syringe .plunger{ fill:#7b8a99; }
+
+/* Керування інфузією в картці */
+.pump-controls{
+  display:grid;
+  grid-template-columns: 1fr auto auto;
+  gap:8px;
+}
+.pump-controls .row{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+.pump-controls .rate{ display:flex; gap:8px; align-items:center; }
+.pump-controls input[type="range"]{ width:200px; }
+.pump-controls .meta{ font-size:12px; color:#9fb0bf; }
+
+
+/* quiz mode: показуємо тільки монітор і панель вікторини */
+body.quiz-mode #leftDock,
+body.quiz-mode #controlDock,
+body.quiz-mode #defibGroup {
+  display: none !important;
+}
+
+/* панель вікторини залишаємо видимою і робимо приємною */
+.quiz-panel {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  padding: 10px 12px; border-radius: 12px;
+  backdrop-filter: blur(6px);
+  box-shadow: 0 6px 20px rgba(0,0,0,.15);
+}
+.quiz-panel .primary { font-weight: 600; }
+.quiz-msg.quiz-ok  { color: #1a7f37; font-weight: 600; }
+.quiz-msg.quiz-bad { color: #b00020; font-weight: 600; }
+
+</style>
+
+  </head>
+
+  <body>
+    <div class="quiz-panel">
+  <button id="quizStart" class="primary">Нове завдання</button>
+  <select id="quizGuess"></select>
+  <button id="quizSubmit">Перевірити</button>
+  <button id="quizReveal">Показати відповідь</button>
+  <span id="quizFeedback" class="quiz-msg"></span>
+</div>
+
+    <div class="app">
+      <!-- ===== ЛІВОРУЧ: МОНІТОР ===== -->
+         <!-- ЛІВО: КЛІНІЧНИЙ СЦЕНАРІЙ -->
+  <aside class="left-rail" id="leftRail">
+    <div id="clinicalScenario" class="clinical-card" aria-live="polite" hidden></div>
+  </aside>
+
+      <main>
+    <section class="monitor">
+      <div class="brandbar">
+         <div style="display:flex; align-items:center; gap:8px">
+    <button id="toggleLeft" class="brand-btn"
+            aria-controls="leftRail" aria-expanded="true"
+            title="Показати/сховати ліву панель">⟷</button>
+    <!-- НОВА: для правої -->
+    <button id="toggleRight"
+        class="brand-btn"
+        aria-controls="rightDock"
+        aria-expanded="true"
+        title="Показати/сховати праву панель">⟶</button>
+
+     <span></span>
+  </div>
+        <div></div>
+        <div style="display:flex; align-items:center">RUN <span class="led"></span></div>
+      </div>
+
+      <div class="screen" role="region" aria-label="Monitor screen">
+        <div class="screen-grid">
+          <!-- Хвилі -->
+          <div class="waves">
+            <section class="wave ecg">
+              <div class="lead">ECG II</div>
+              <div class="scale">1 mV</div>
+              <div id="ecgChart" class="chart"></div>
+              <div class="legend-inline"><span class="warn" id="warn"></span></div>
+            </section>
+            <section class="wave pleth">
+              <div class="lead">Плетизм</div>
+              <div class="scale">SpO₂ 100</div>
+              <div id="plethChart" class="chart"></div>
+            </section>
+            <section class="wave abp">
+              <div class="lead">АРТ</div>
+              <div class="scale">150</div>
+              <div id="abpChart" class="chart"></div>
+            </section>
+          </div>
+
+          <!-- Великі цифри праворуч усередині екрана -->
+          <aside class="vitals">
+            <div class="vital hr"><div class="label">ЧСС</div><div class="value" id="hrBig">60</div></div>
+            <div class="vital spo2"><div class="label">SpO₂</div><div class="value" id="spo2Big">98</div></div>
+            <div class="vital bp"><div class="label">АД</div><div class="value" id="bpBig">120/70</div><div class="map" id="bpMapBig">(87)</div></div>
+            <div class="vital bis"><div class="label">BIS</div><div class="value" id="bisBig">60</div></div>
+          </aside>
+        </div>
+        <div class="tempbar">Темп. <span id="tempKpi">36.6</span></div>
+      </div>
+
+      <!-- софт-клавіші під екраном + приховані KPI (без змін) -->
+      <div class="softkeys" aria-hidden="true"> … </div>
+      <div id="kpiHidden" aria-hidden="true" style="display:none">
+        <span id="hrKpi">60</span><span id="bpKpi">120/70</span><span id="mapKpi">87</span>
+        <span id="emdKpi">120</span><span id="pttKpi">80</span>
+      </div>
+    </section>
+  </main>
+
+
+    <!-- Ваш основний симулятор (ЕКГ та АРТ) -->
+    <script type="module" src="{% static 'ECG_display/js/main.js' %}?v={% now 'U' %}"></script>
+
+    <!-- Великі цифри + згортання панелі -->
+    <script>
+  function round(n){ return Math.round(Number(n)); }
+
+  // >>> ЗВЕРНИ УВАГУ: тепер BP/MAP беремо з bpKpi/mapKpi (які оновлює updateKpis)
+  const ids = {
+    hrSrc:'hrKpi',            hrDst:'hrBig',
+    spo2Input:'spo2N',        spo2Dst:'spo2Big',
+    bisInput:'bisN',          bisDst:'bisBig',
+    bpSrc:'bpKpi',            bpDst:'bpBig',
+    mapSrc:'mapKpi',          mapDst:'bpMapBig'
+  };
+
+  function syncNumbers(){
+    const get = id => document.getElementById(id);
+    const set = (id,val)=>{ const el=get(id); if(el) el.textContent = val; };
+
+    const hr   = get(ids.hrSrc )?.textContent || '60';
+    const spo2 = get(ids.spo2Input)?.value     || '98';
+    const bis  = get(ids.bisInput )?.value     || '60';
+    const bp   = get(ids.bpSrc )?.textContent  || '';   // уже у форматі "SYS/DIA"
+    const map  = get(ids.mapSrc)?.textContent  || '';   // просто число
+
+    set(ids.hrDst, hr);
+    set(ids.spo2Dst, spo2);
+    set(ids.bisDst, bis);
+
+    if (bp)  set(ids.bpDst, bp);
+    if (map) set(ids.mapDst, `(${map})`);
+  }
+
+  // оновлюємо великі цифри коли перераховано KPI (HR/BP/MAP) і при зміні ползунків SpO2/BIS
+  ;['hrKpi','bpKpi','mapKpi'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) new MutationObserver(syncNumbers).observe(el, { childList:true, characterData:true, subtree:true });
+  });
+  ['spo2N','bisN','spo2','bis'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) ['input','change'].forEach(evt => el.addEventListener(evt, syncNumbers));
+  });
+
+  syncNumbers();
+
+  // згортання панелі (як було)
+  const dock = document.getElementById('controlDock');
+  const btn  = document.getElementById('toggleControls');
+  if (btn && dock) btn.addEventListener('click', () => dock.classList.toggle('collapsed'));
+</script>
+  
+
+    <!-- Виправлення: ставимо реальні width/height SVG у контейнерах (щоб хвилі бігли по всій ширині) -->
+    <script>
+      function fitSVG(rootId){
+        const root = document.getElementById(rootId);
+        if (!root) return;
+        const svg = root.querySelector('svg');
+        if (!svg) return;
+        const w = Math.max(1, root.clientWidth);
+        const h = Math.max(1, root.clientHeight);
+        svg.setAttribute('width', w);
+        svg.setAttribute('height', h);
+        if (!svg.getAttribute('viewBox')) svg.setAttribute('viewBox', `0 0 ${w} ${h}`);
+        root.querySelectorAll('defs clipPath rect').forEach(r => { r.setAttribute('width', w); r.setAttribute('height', h); });
+      }
+      const IDS = ['ecgChart','plethChart','abpChart'];
+      const mo = new MutationObserver(() => IDS.forEach(fitSVG));
+      mo.observe(document.body, { childList: true, subtree: true });
+      IDS.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) new ResizeObserver(() => fitSVG(id)).observe(el);
+      });
+      window.addEventListener('load', () => { setTimeout(() => { IDS.forEach(fitSVG); window.dispatchEvent(new Event('resize')); }, 60); });
+    </script>
+
+    <!-- Плетизмограма (з осями X/Y), синхронізується з HR та PI -->
+<script>
+  (function () {
+    const root = document.getElementById('plethChart');
+    if (!root || typeof d3 === 'undefined') return;
+
+    const axisColor = '#9fb0bf';
+    const PLETH_BASE = 0.6; // 0..1 — зміщення вгору (було 0.10)
+const PLETH_SPAN = 0.70; // вертикальний діапазон хвилі (base+span ≤ 0.98)
+    const clamp01 = x => Math.max(0, Math.min(1, x));
+
+    // утиліта зчитування контролів
+    const nval = (id, def) => {
+      const el = document.getElementById(id);
+      const v = el && (el.value ?? el.textContent);
+      const n = Number(v);
+      return Number.isFinite(n) ? n : def;
+    };
+
+    // svg і групи
+    const svg   = d3.select(root).append('svg');
+    const gAxes = svg.append('g').attr('class', 'axes');
+    const gLine = svg.append('g').attr('class', 'wave-line');
+    const path  = gLine.append('path')
+      .attr('fill', 'none')
+      .attr('stroke-width', 2)
+      .attr('stroke', getComputedStyle(document.documentElement)
+        .getPropertyValue('--col-pleth') || '#00e5ff');
+
+    let w = 0, h = 0, xstep = 1;
+
+    function resize() {
+      w = Math.max(1, root.clientWidth);
+      h = Math.max(1, root.clientHeight);
+      svg.attr('width', w).attr('height', h);
+
+      const dur = nval('duration', 10);
+      const xScale = d3.scaleLinear().domain([-dur, 0]).range([0, w]);
+      const yScale = d3.scaleLinear().domain([0, 1]).range([h, 0]);
+
+      gAxes.selectAll('*').remove();
+      const gx = gAxes.append('g')
+        .attr('transform', `translate(0,${h - 1})`)
+        .call(d3.axisBottom(xScale).ticks(Math.max(4, Math.floor(dur / 2))));
+      gx.selectAll('path, line').attr('stroke', axisColor);
+      gx.selectAll('text').attr('fill', axisColor).attr('font-size', 10);
+
+      const gy = gAxes.append('g')
+        .call(d3.axisLeft(yScale).ticks(4));
+      gy.selectAll('path, line').attr('stroke', axisColor);
+      gy.selectAll('text').attr('fill', axisColor).attr('font-size', 10);
+    }
+
+    // перетворення ABP→"плетизма"
+    function abpToPleth(mmHg, sys, dia, pi) {
+      const span = Math.max(15, sys - dia);        // захист від малого пульсового
+      let x = (mmHg - dia) / span;                 // 0..1
+      x = clamp01(x);
+
+      // легке "фотоплетизм" шейпінґ: крутіший підйом, м'якший спад
+      // (гамма + трохи компресії)
+      x = Math.pow(x, 1.35);
+      x = (x + 0.15 * Math.sin(x * Math.PI)) / 1.15;
+
+      // амплітуда від PI: 0–20% → ~0–1
+      const amp = Math.min(1, (pi || 0) / 10);
+
+      // базова лінія + масштаб
+      return Math.min(0.98, PLETH_BASE + (PLETH_SPAN * amp) * x);                // в межах [0.10..0.95]
+    }
+
+    // простий 3-точковий згладжувач
+    function smooth3(arr) {
+      if (arr.length < 3) return arr;
+      const out = new Float32Array(arr.length);
+      out[0] = arr[0];
+      for (let i = 1; i < arr.length - 1; i++) {
+        out[i] = (arr[i - 1] + 2 * arr[i] + arr[i + 1]) / 4;
+      }
+      out[arr.length - 1] = arr[arr.length - 1];
+      return out;
+    }
+
+    const line = d3.line()
+      .x((d, i) => i * xstep)
+      .y(d => h - d * h);
+
+    function drawFromAbp() {
+      const src = window.__ABP_getBuffer && window.__ABP_getBuffer();
+      if (!src || !src.buf || !src.len) return;
+
+      const sys = nval('sysN', 120);
+      const dia = nval('diaN', 70);
+      const pi  = nval('piN', 3.2);
+
+      // скільки точок показувати: все вікно
+      const N = src.len;
+      xstep = w / Math.max(1, (N - 1));
+
+      // створюємо послідовний зріз кільця head..end, 0..head-1
+      const y = new Float32Array(N);
+      for (let i = 0; i < N; i++) {
+        const idx = (src.head + i) % N;
+        y[i] = abpToPleth(src.buf[idx], sys, dia, pi);
+      }
+
+      const ys = smooth3(y);
+      path.attr('d', line(ys));
+    }
+
+    function raf() {
+      drawFromAbp();
+      requestAnimationFrame(raf);
+    }
+
+    resize();
+    new ResizeObserver(resize).observe(root);
+    requestAnimationFrame(raf);
+  })();
+
+ 
+(function killSvgGridAuto(){
+  const sel = '#ecgChart svg g.grid, #plethChart svg g.grid, #abpChart svg g.grid';
+  const wipe = () => document.querySelectorAll(sel).forEach(n => n.remove());
+  wipe();
+  // Слухаємо будь-які перерендери D3
+  const roots = ['ecgChart','plethChart','abpChart']
+    .map(id => document.getElementById(id)).filter(Boolean);
+  roots.forEach(root => new MutationObserver(wipe).observe(root, {childList:true, subtree:true}));
+})();
+(function killEcgYAxis(){
+  const wipe = () => {
+    // перша вісь у ECG — ліва
+    const axes = document.querySelectorAll('#ecgChart g.axes g.axis');
+    if (axes[0]) axes[0].remove();
+    // прибрати службові текстові лейбли (за потреби)
+    document.querySelectorAll('#ecgChart .label').forEach(n => n.remove());
+    // прибрати підписи доріжки
+    document.querySelectorAll('.wave.ecg .lead, .wave.ecg .scale').forEach(n => n.remove());
+  };
+  wipe();
+  const root = document.getElementById('ecgChart');
+  if (root) new MutationObserver(wipe).observe(root, { childList:true, subtree:true });
+})();
+(function killAbpYAxis(){
+  const wipe = () => {
+    // перша вісь у ABP — ліва; видаляємо її
+    const axes = document.querySelectorAll('#abpChart g.axes g.axis');
+    if (axes[0]) axes[0].remove();
+    // прибираємо службові лейбли «час…», «мм рт. ст.» якщо з'являться
+    document.querySelectorAll('#abpChart .label').forEach(n => n.remove());
+    // прибираємо лейбл доріжки «АРТ»/«150»
+    document.querySelectorAll('.wave.abp .lead, .wave.abp .scale').forEach(n => n.remove());
+  };
+  wipe();
+  const root = document.getElementById('abpChart');
+  if (root) new MutationObserver(wipe).observe(root, {childList:true, subtree:true});
+})();
+
+</script>
+<script>
+(function killMiniOverlay(){
+  const sel = '#ecgChart .monitor, #plethChart .monitor, #abpChart .monitor';
+  const wipe = () => document.querySelectorAll(sel).forEach(n => n.remove());
+  wipe();
+  ['ecgChart','plethChart','abpChart'].forEach(id=>{
+    const el = document.getElementById(id);
+    if (el) new MutationObserver(wipe).observe(el, {childList:true, subtree:true});
+  });
+})();
+</script>
+<script>
+// 3.1 Стартуємо завжди згорнутими праву панель
+document.addEventListener('DOMContentLoaded', ()=>{
+  document.getElementById('controlDock')?.classList.add('collapsed');
+});
+// Кнопка згортання вже є в тебе: #toggleControls — логіка лишається
+</script>
+
+<script>
+// 3.2 Препарати: простий список
+(function meds(){
+  const nameI = document.getElementById('drugName');
+  const doseI = document.getElementById('drugDose');
+  const addB  = document.getElementById('addDrug');
+  const list  = document.getElementById('drugList');
+  if(!nameI || !doseI || !addB || !list) return;
+
+  function addItem(n, d){
+    const li = document.createElement('li');
+    const title = document.createElement('div');
+    title.textContent = n || '—';
+    const meta = document.createElement('div');
+    meta.className = 'meta'; meta.textContent = d || '';
+    const del = document.createElement('button');
+    del.textContent = '×'; del.title = 'Видалити';
+    del.addEventListener('click', ()=> li.remove());
+    li.appendChild(title); li.appendChild(meta); li.appendChild(del);
+    list.prepend(li);
+  }
+
+  addB.addEventListener('click', ()=>{
+    const n = nameI.value.trim(), d = doseI.value.trim();
+    if(!n) return;
+    addItem(n, d); nameI.value=''; doseI.value='';
+  });
+})();
+</script>
+
+<script>
+// 3.3 Дефібрилятор: прості стани (живлення → заряд → розряд)
+// (опційно: якщо зараз VF, після «Розряд» переключимося на baseline)
+(function defib(){
+  let power=false, charging=false, charged=false, energy=150, timer=null, progress=0;
+  const q = id => document.getElementById(id);
+  const powerBtn = q('defibPower');
+  const energyRange = q('defibEnergy');
+  const energyLabel = q('defibEnergyLabel');
+  const chargeBtn = q('defibCharge');
+  const shockBtn = q('defibShock');
+  const status = q('defibStatus');
+
+  function setStatus(txt){ if(status) status.textContent = txt; }
+  function setEnergyUI(v){
+    energyLabel.textContent = `${v} Дж`;
+    const knob = energyLabel.closest('.knob');
+    if (knob) {              // мапа 50..360 Дж → -135..+135°
+      const deg = (v-50) / (360-50) * 270 - 135;
+      knob.style.transform = `rotate(${deg}deg)`;
+    }
+  }
+
+  powerBtn?.addEventListener('click', ()=>{
+    power=!power; powerBtn.classList.toggle('on', power);
+    setStatus(power? 'Готово' : 'Вимкнено');
+    shockBtn.disabled = true; charged=false; charging=false;
+    if(timer){ clearInterval(timer); timer=null; }
+  });
+
+  energyRange?.addEventListener('input', e=>{
+    energy = +e.target.value; setEnergyUI(energy);
+  });
+  setEnergyUI(+energyRange?.value || 150);
+
+  chargeBtn?.addEventListener('click', ()=>{
+    if(!power) return setStatus('Увімкніть живлення');
+    if(charging) return;
+    charging=true; charged=false; shockBtn.disabled = true; progress=0;
+    setStatus('Заряджаю…');
+    timer = setInterval(()=>{
+      progress += 10;
+      if(progress >= 100){
+        clearInterval(timer); timer=null;
+        charging=false; charged=true; shockBtn.disabled=false;
+        setStatus(`Заряджено ${energy} Дж`);
+      }
+    }, 120); // ~1.2с до повного заряду
+  });
+
+  shockBtn?.addEventListener('click', ()=>{
+    if(!power || !charged) return;
+    setStatus('Розряд!');
+    shockBtn.disabled = true; charged=false;
+    // Невеличка інтеграція з ЕКГ: якщо поточний сценарій VF — перемкнути на синус
+    const scen = document.body?.dataset?.scenario;
+    if (scen === 'vf' && window.__ECG_applyScenario) {
+      window.__ECG_applyScenario('sinus_brady_mild');
+    }
+    else
+    {
+      window.__ECG_applyScenario('vf')
+    }
+    setTimeout(()=> setStatus('Готово'), 600);
+  });
+})();
+</script>
+<script>
+  (function(){
+    const app = document.querySelector('.app');
+    const btn = document.getElementById('toggleLeft');
+    const left = document.getElementById('leftRail');
+    if(!app || !btn || !left) return;
+
+    function updateAria(){
+      const hidden = app.classList.contains('hide-left');
+      btn.setAttribute('aria-expanded', String(!hidden));
+    }
+
+    btn.addEventListener('click', ()=>{
+      app.classList.toggle('hide-left');
+      updateAria();
+    });
+
+    updateAria();
+  })();
+</script>
+<script>
+  (function(){
+    const app = document.querySelector('.app');
+    const btnR = document.getElementById('toggleRight');
+    const right = document.getElementById('controlDock');
+    if(!app || !btnR || !right) return;
+
+    function updateAriaRight(){
+      const hidden = app.classList.contains('hide-right');
+      btnR.setAttribute('aria-expanded', String(!hidden));
+    }
+
+    btnR.addEventListener('click', ()=>{
+      app.classList.toggle('hide-right');
+      updateAriaRight();
+    });
+
+    updateAriaRight();
+  })();
+</script>
+
+{% load static %}
+<script>
+  const infuzomatUrl = "{% static 'img/infuzomat.png' %}";
+</script>
+</body>
+</html>
